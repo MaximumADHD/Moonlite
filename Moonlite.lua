@@ -482,7 +482,7 @@ function Moonlite.CreatePlayer(save: StringValue): Track
 						elseif children[name] then
 							data = children[name]
 						else
-							warn(`failed to resolve joint '{tree}' (couldn't find child '{name}' in {data.Name}!)`)
+							warn(`failed to resolve joint '{tree}' (could not find child '{name}' in {data.Name}!)`)
 							data = nil
 						end
 					end
