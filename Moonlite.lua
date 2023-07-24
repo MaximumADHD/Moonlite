@@ -488,11 +488,12 @@ function Moonlite.CreatePlayer(save: StringValue): Track
 					end
 
 					if data then
+						-- TODO: Writing to C1 is SLOW, need to use Transform instead.
 						local transformer: MoonInstance = {
 							Target = data.Joint,
 
 							Props = {
-								Transform = {
+								C1 = {
 									Default = default,
 									Sequence = unpackKeyframes(keyframes),
 								},
