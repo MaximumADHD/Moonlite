@@ -1,7 +1,7 @@
 -- Moonlite
 -- Author: MaximumADHD
 -- Description: A WIP lightweight in-game player for sequences created in Moon Animator (by xSIXx)
--- Version: 0.1.0
+-- Version: 0.2.0
 
 --[[
 
@@ -381,7 +381,7 @@ local function getEasingDirection(ease: MoonEase?): Enum.EasingDirection
 	return Enum.EasingDirection.InOut
 end
 
-local function unpackKeyframes(container: Instance)
+local function unpackKeyframes(container: Instance, modifier: ((any) -> any)?)
 	local packs = {}
 	local indices = {}
 	local sequence = {}
@@ -416,6 +416,10 @@ local function unpackKeyframes(container: Instance)
 			local value = current.Values[i]
 
 			if value ~= nil then
+				if modifier then
+					value = modifier(value)
+				end
+
 				table.insert(sequence, {
 					Time = baseIndex + i,
 					Value = value,
@@ -488,19 +492,21 @@ function Moonlite.CreatePlayer(save: StringValue): Track
 					end
 
 					if data then
-						-- TODO: Writing to C1 is SLOW, need to use Transform instead.
-						local transformer: MoonInstance = {
+						local jointAnim: MoonInstance = {
 							Target = data.Joint,
 
 							Props = {
-								C1 = {
-									Default = default,
-									Sequence = unpackKeyframes(keyframes),
+								Transform = {
+									Default = CFrame.identity,
+
+									Sequence = unpackKeyframes(keyframes, function(c1: CFrame)
+										return c1:Inverse() * default
+									end),
 								},
 							},
 						}
 
-						table.insert(targets, transformer)
+						table.insert(targets, jointAnim)
 					end
 				end
 			end
