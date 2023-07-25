@@ -23,7 +23,7 @@ Loads the provided MoonAnimator save to be played back.
 
 ### 🌖 MoonliteTrack
 ```lua
-type Track = Moonlite.Track
+type MoonliteTrack = Moonlite.Track
 ```
 MoonliteTrack is a type exported from the module that represents a playback track.
 
