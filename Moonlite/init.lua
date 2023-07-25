@@ -550,7 +550,7 @@ function MoonliteTrack.Play(self: Track)
 				local timeStamp = kf.Time / 60
 				local goal = kf.Value
 				local ease = kf.Ease
-				
+
 				-- stylua: ignore
 				local tweenTime = if lastTime
 					then timeStamp - lastTime
@@ -596,8 +596,6 @@ function MoonliteTrack.Play(self: Track)
 				elseif typeof(goal) == "Instance" or type(goal) == "nil" or type(goal) == "boolean" then
 					handler = function(t: number)
 						-- Presumably constant
-						print(t, start, goal)
-
 						if t >= 1 then
 							return goal
 						else
