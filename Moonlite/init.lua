@@ -587,8 +587,6 @@ function MoonliteTrack.Play(self: Track)
 					end)
 				elseif typeof(goal) == "Instance" or type(goal) == "nil" or type(goal) == "boolean" then
 					interp.Changed:Connect(function (t: number)
-						t = easeFunc(t)
-						
 						if t >= 0 then
 							setPropValue(self, target, propName, goal)
 						else
@@ -597,7 +595,7 @@ function MoonliteTrack.Play(self: Track)
 					end)
 				else
 					interp.Changed:Connect(function (t: number)
-						local value = lerp(start, goal, easeFunc(t))
+						local value = lerp(start, goal, t)
 						setPropValue(self, target, propName, value)
 					end)
 				end
