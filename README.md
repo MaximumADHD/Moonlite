@@ -7,7 +7,7 @@
 Moonlite is a work-in-progress (WIP), lightweight in-game player for sequences created in Moon Animator, a tool developed by xSIXx. This project is actively developed and maintained by MaximumADHD.
 
 ## 🔖 Current Version
-- 0.5.0
+- 0.6.0
 
 ---
 
@@ -31,7 +31,8 @@ MoonliteTrack is a type exported from the module that represents a playback trac
 ```lua
 MoonliteTrack:Play() -> ()
 ```
-Starts playing the track's elements.
+Starts playing the track's elements.<br/>
+Has no effect if already playing.
 
 #### Stop
 ```lua
@@ -43,7 +44,8 @@ Stops all playing track elements.
 ```lua
 MoonliteTrack:Reset() -> ()
 ```
-Resets any modified properties to their declared defaults. Note: Calling this while a track is playing is undefined behavior.
+Resets any modified properties to their declared defaults.<br/>
+Note: Calling this while a track is playing is undefined behavior.
 
 #### IsPlaying
 ```lua
@@ -51,46 +53,14 @@ MoonliteTrack:IsPlaying() -> boolean
 ```
 Returns true if the track still has elements playing.
 
-#### Info
+#### Looped
 ```lua
-MoonliteTrack.Info: MoonliteInfo
+MoonliteTrack.Looped: boolean
 ```
-A dictionary of metadata about the MoonAnimator save.
+Whether the track playback will loop on completion.
 
 #### Completed
 ```lua
 MoonliteTrack.Completed: RBXScriptSignal
 ```
 Fired when playback of the track is completed.
-
-### 🌒 MoonliteInfo
-
-#### Created
-```lua
-MoonliteInfo.Created: number
-```
-UNIX Timestamp of when the animation was created.
-
-#### ExportedPriority
-```lua
-MoonliteInfo.ExportedPriority: string
-```
-Maps to Enum.AnimationPriority, intended priority for this animation if it was created for a joint rig.
-
-#### Modified
-```lua
-MoonliteInfo.Modified: number
-```
-UNIX Timestamp of when the animation was last modified.
-
-#### Length
-```lua
-MoonliteInfo.Length: number
-```
-Expected duration of this track's playback.
-
-#### Looped
-```lua
-MoonliteInfo.Looped: number
-```
-Whether the playback of this track should be looped. Currently has no effect, but may in the future.

@@ -4,4 +4,4 @@
 # To add a new tool, add an entry to this table.
 [tools]
 rojo = "rojo-rbx/rojo@7.2.1"
-stylua = "johnnymorganz/stylua@0.15.2"
+stylua = "johnnymorganz/stylua@0.18.1"

@@ -2,6 +2,18 @@
 local RBX: any = nil
 export type Event = typeof((RBX :: BindableEvent).Event)
 
+-- stylua: ignore
+export type MoonEaseType =
+	  "Back"   | "Bounce"  | "Circ"  | "Constant" 
+	| "Cubic"  | "Elastic" | "Expo"  | "Linear"
+	| "Quad"   | "Quart"   | "Quint" 
+	| "Sextic" | "Sine"
+
+-- stylua: ignore
+export type MoonEaseDir =
+	  "In"     | "Out"  
+	| "InOut"  | "OutIn"
+
 export type MoonAnimPath = {
 	ItemType: string,
 	InstanceTypes: { string },
@@ -13,10 +25,10 @@ export type MoonAnimItem = {
 }
 
 export type MoonEaseInfo = {
-	Type: string,
+	Type: MoonEaseType,
 
 	Params: {
-		Direction: string?,
+		Direction: MoonEaseDir?,
 		Overshoot: number?,
 		Amplitude: number?,
 		Period: number?,

@@ -1,5 +1,8 @@
 {
 	"[lua]": {
 		"editor.defaultFormatter": "JohnnyMorganz.stylua",
+		"editor.detectIndentation": false,
+		"editor.insertSpaces": false,
+		"editor.formatOnSave": true
 	}
 }

@@ -9,8 +9,10 @@ local EaseFuncs = {} :: {
 local Moonlite = script.Parent
 local Types = require(Moonlite.Types)
 
-type MoonEaseInfo = Types.MoonEaseInfo
 type EaseFunc = (...number) -> number
+type MoonEaseInfo = Types.MoonEaseInfo
+type MoonEaseType = Types.MoonEaseType
+type MoonEaseDir = Types.MoonEaseDir
 
 -------------------------------------------------------------------------------------------------------------------------
 -- Linear
@@ -68,7 +70,7 @@ end
 
 function EaseFuncs.InOutQuad(t, b, c, d)
 	t = t / d * 2
-	
+
 	if t < 1 then
 		return c / 2 * math.pow(t, 2) + b
 	else
@@ -100,7 +102,7 @@ end
 
 function EaseFuncs.InOutCubic(t, b, c, d)
 	t = t / d * 2
-	
+
 	if t < 1 then
 		return c / 2 * t * t * t + b
 	else
@@ -133,7 +135,7 @@ end
 
 function EaseFuncs.InOutQuart(t, b, c, d)
 	t = t / d * 2
-	
+
 	if t < 1 then
 		return c / 2 * math.pow(t, 4) + b
 	else
@@ -166,7 +168,7 @@ end
 
 function EaseFuncs.InOutQuint(t, b, c, d)
 	t = t / d * 2
-	
+
 	if t < 1 then
 		return c / 2 * math.pow(t, 5) + b
 	else
@@ -279,7 +281,7 @@ end
 
 function EaseFuncs.InOutCirc(t, b, c, d)
 	t = t / d * 2
-	
+
 	if t < 1 then
 		return -c / 2 * (math.sqrt(1 - t * t) - 1) + b
 	else
@@ -520,66 +522,61 @@ end
 
 local HttpService = game:GetService("HttpService")
 
-local DEFAULT_INFO = {
+local DEFAULT_INFO: MoonEaseInfo = {
 	Type = "Linear",
-	
-	Params = {
-		Direction = "Out"
-	}
+	Params = {},
 }
 
 local FUNC_CACHE = {} :: {
-	[string]: EaseFunc
+	[string]: EaseFunc,
 }
 
-local function get(maybeInfo: MoonEaseInfo?): (number) -> number
+local function get(maybeInfo: MoonEaseInfo?): (value: number) -> number
 	local info: MoonEaseInfo = maybeInfo or DEFAULT_INFO
 	local hashKey = HttpService:JSONEncode(info)
-	
+
 	if FUNC_CACHE[hashKey] == nil then
 		local params = info.Params
-		local style = info.Type or "Linear"
-		
-		local dir = params.Direction or "Out"
+		local style: MoonEaseType = info.Type or "Linear"
+		local dir: MoonEaseDir? = params.Direction or "Out"
+
+		-- stylua: ignore
 		local impl = EaseFuncs[`{dir}{style}`]
-		
-		if impl == nil then
-			impl = EaseFuncs[style]
-		end
-		
+			      or EaseFuncs[style]
+
 		if impl then
 			local func: EaseFunc
-			
+
 			if style == "Elastic" then
 				local period = params.Period or 0.3
 				local amplitude = params.Amplitude or 1
-				
-				func = function (value)
+
+				func = function(value)
 					return impl(value, 0, 1, 1, amplitude, period)
 				end
 			elseif style == "Back" then
 				local overshoot = params.Overshoot or 1.70158
-				
-				func = function (value)
+
+				func = function(value)
 					return impl(value, 0, 1, 1, overshoot)
 				end
 			else
-				func = function (value)
+				func = function(value)
 					return impl(value, 0, 1, 1)
 				end
 			end
-			
+
 			FUNC_CACHE[hashKey] = func
 		else
 			return get(DEFAULT_INFO)
 		end
 	end
-	
+
 	return FUNC_CACHE[hashKey]
 end
 
 return {
-	Get = get
+	Get = get,
 }
 
 -------------------------------------------------------------------------------------------------------------------------

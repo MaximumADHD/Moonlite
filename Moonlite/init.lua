@@ -1,7 +1,7 @@
 -- Moonlite
 -- Author: MaximumADHD
 -- Description: A WIP lightweight in-game player for sequences created in Moon Animator (by xSIXx)
--- Version: 0.5.0
+-- Version: 0.6.0
 
 --[[
 
@@ -23,6 +23,7 @@ type MoonliteTrack = Moonlite.Track
 
 MoonliteTrack:Play() -> ()
 ~ Starts playing the track's elements.
+  Has no effect if already playing.
 
 MoonliteTrack:Stop() -> ()
 ~ Stops all playing track elements.
@@ -34,32 +35,21 @@ MoonliteTrack:Reset() -> ()
 MoonliteTrack:IsPlaying() -> boolean
 ~ Returns true if the track still has elements playing.
 
-MoonliteTrack.Info: MoonliteInfo
-~ A dictionary of metadata about the MoonAnimator save.
+MoonliteTrack:GetSetting(name: string) -> any
+~ Returns a value stored in the track's working scratchpad.
+  Can be used to get custom data or make behavior tweaks 
+  to specials.
+
+MoonliteTrack:SetSetting(name: string, value: any)
+~ Sets a value in the track's working scratchpad.
+  Can be used to set custom data or make behavior tweaks 
+  to specials.
+
+MoonliteTrack.Looped: boolean
+~ Whether the track playback will loop on completion.
 
 MoonliteTrack.Completed: RBXScriptSignal
 ~ Fired when playback of the track is completed.
-
-------------------------------------
--- MoonliteInfo
-------------------------------------
-
-MoonliteInfo.Created: number
-~ UNIX Timestamp of when the animation was created.
-
-MoonliteInfo.ExportedPriority: string
-~ Maps to Enum.AnimationPriority, intended priority for 
-  this animation if it was created for a joint rig.
-
-MoonliteInfo.Modified: number
-~ UNIX Timestamp of when the animation was last modified.
-
-MoonliteInfo.Length: number
-~ Expected duration of this track's playback.
-
-MoonliteInfo.Looped: number
-~ Whether the playback of this track should be looped.
-  Currently has no effect, but may in the future.
 
 ------------------------------------
 
@@ -99,9 +89,11 @@ type GetSet<Inst, Value> = Types.GetSet<Inst, Value>
 local MoonliteTrack = {}
 MoonliteTrack.__index = MoonliteTrack
 
+-- stylua: ignore
 export type Track = typeof(setmetatable({} :: {
-	Info: MoonAnimInfo,
+	PlaybackSpeed: number,
 	Completed: Event,
+	Looped: boolean,
 
 	_tweens: { Tween },
 	_completed: BindableEvent,
@@ -110,8 +102,8 @@ export type Track = typeof(setmetatable({} :: {
 	_playing: {
 		[MoonProperty]: true,
 	},
-	
-	_scratch: Scratchpad
+
+	_scratch: Scratchpad,
 }, MoonliteTrack))
 
 local function resolveAnimPath(path: MoonAnimPath?): Instance?
@@ -188,7 +180,7 @@ local function parseEase(easeInst: Instance): MoonEaseInfo
 	local ease = {
 		-- stylua: ignore
 		Type = assert(if typeInst and typeInst:IsA("StringValue")
-			then typeInst.Value 
+			then typeInst.Value :: any
 			else nil),
 
 		Params = {},
@@ -214,15 +206,15 @@ local function parseEaseOld(easeInst: Instance): MoonEaseInfo
 	assert(dir and dir:IsA("StringValue"), "No direction in legacy ease!")
 
 	return {
-		Type = style.Value,
+		Type = style.Value :: any,
 
 		Params = {
-			Direction = dir.Value,
+			Direction = dir.Value :: any,
 		},
 	}
 end
 
-local function lerp<T>(a: T, b: T, t: number)
+local function lerp<T>(a: T, b: T, t: number): any
 	if typeof(a) == "number" then
 		return a + ((b - a) * t)
 	else
@@ -236,7 +228,7 @@ local function readValue(value: Instance)
 		local bin = if tonumber(value.Name)
 			then assert(value.Parent)
 			else value
-		
+
 		local read = (value :: any).Value
 		local enumType = bin:FindFirstChild("EnumType")
 
@@ -260,29 +252,29 @@ end
 
 local function getPropValue(self: Track, inst: Instance?, prop: string): (boolean, any?)
 	if inst then
-		local classTable = Specials[inst.ClassName]
-		local propHandler = classTable and classTable[prop]
-		
+		local propTable = Specials.Get(inst)
+		local propHandler = propTable[prop]
+
 		if propHandler then
 			return pcall(propHandler.Get, self._scratch, inst)
 		end
 	end
-	
-	return pcall(function ()
+
+	return pcall(function()
 		return (inst :: any)[prop]
 	end)
 end
 
 local function setPropValue(self: Track, inst: Instance?, prop: string, value: any): boolean
 	if inst then
-		local classTable = Specials[inst.ClassName]
-		local propHandler = classTable and classTable[prop]
-		
+		local propTable = Specials.Get(inst)
+		local propHandler = propTable and propTable[prop]
+
 		if propHandler then
 			return pcall(propHandler.Set, self._scratch, inst, value)
 		end
 	end
-	
+
 	return pcall(function()
 		(inst :: any)[prop] = value
 	end)
@@ -368,9 +360,10 @@ local function unpackKeyframes(container: Instance, modifier: ((any) -> any)?)
 
 	while current do
 		local baseIndex = current.FrameIndex
+		local lastEase
 
 		for i = 0, current.FrameCount do
-			local ease = current.Eases[i]
+			local ease = current.Eases[i] or lastEase
 			local value = current.Values[i]
 
 			if value ~= nil then
@@ -383,6 +376,10 @@ local function unpackKeyframes(container: Instance, modifier: ((any) -> any)?)
 					Value = value,
 					Ease = ease,
 				})
+
+				if ease then
+					lastEase = ease
+				end
 			end
 		end
 
@@ -396,7 +393,7 @@ function Moonlite.CreatePlayer(save: StringValue): Track
 	local saveData: MoonAnimSave = HttpService:JSONDecode(save.Value)
 	local completed = Instance.new("BindableEvent")
 	local targets = {} :: { MoonInstance }
-	
+
 	for id, item in saveData.Items do
 		local path = item.Path
 		local itemType = path.ItemType
@@ -457,13 +454,13 @@ function Moonlite.CreatePlayer(save: StringValue): Track
 								Transform = {
 									Default = CFrame.identity,
 
-									Sequence = unpackKeyframes(keyframes, function (c1: CFrame)
+									Sequence = unpackKeyframes(keyframes, function(c1: CFrame)
 										return c1:Inverse() * default
 									end),
 								},
 							},
 						}
-						
+
 						table.insert(targets, jointAnim)
 					end
 				end
@@ -492,8 +489,9 @@ function Moonlite.CreatePlayer(save: StringValue): Track
 	end
 
 	return setmetatable({
+		PlaybackSpeed = 1,
+		Looped = saveData.Information.Looped,
 		Completed = completed.Event,
-		Info = saveData.Information,
 
 		_completed = completed,
 		_targets = targets,
@@ -529,7 +527,7 @@ end
 
 function MoonliteTrack.Play(self: Track)
 	if self:IsPlaying() then
-		self:Stop()
+		return
 	end
 
 	for id, inst in self._targets do
@@ -544,6 +542,7 @@ function MoonliteTrack.Play(self: Track)
 				continue
 			end
 
+			local lastEase: MoonEaseInfo?
 			local lastTween: Tween?
 			local lastTime: number?
 
@@ -551,102 +550,130 @@ function MoonliteTrack.Play(self: Track)
 				local timeStamp = kf.Time / 60
 				local goal = kf.Value
 				local ease = kf.Ease
-
+				
 				-- stylua: ignore
 				local tweenTime = if lastTime
 					then timeStamp - lastTime
 					else timeStamp
-				
+
 				local interp = Instance.new("NumberValue")
-				local easeFunc = EaseFuncs.Get(ease)
+				local easeFunc = EaseFuncs.Get(lastEase)
+
+				local handler: ((t: number) -> any)?
+				local setup: () -> ()?
 				local start: any
-				
+
 				if typeof(goal) == "ColorSequence" then
-					goal = goal.Keypoints[1].Value
-					
-					interp.Changed:Connect(function(t: number)
-						local value = lerp(start.Keypoints[1].Value, goal, easeFunc(t))
-						local cs = ColorSequence.new(value)
-						setPropValue(self, target, propName, cs)
-					end)
-				elseif typeof(goal) == "NumberSequence" then
-					goal = goal.Keypoints[1].Value
-					
-					interp.Changed:Connect(function(t: number)
-						local value = lerp(start.Keypoints[1].Value, goal, easeFunc(t))
-						local ns = NumberSequence.new(value)
-						setPropValue(self, target, propName, ns)
-					end)
-				elseif typeof(goal) == "NumberRange" then
-					goal = goal.Min
-					
-					interp.Changed:Connect(function(t: number)
-						local value = lerp(start.Min, goal, easeFunc(t))
-						local nr = NumberRange.new(value)
-						setPropValue(self, target, propName, nr)
-					end)
-				elseif typeof(goal) == "Instance" or type(goal) == "nil" or type(goal) == "boolean" then
-					interp.Changed:Connect(function (t: number)
-						if t >= 0 then
-							setPropValue(self, target, propName, goal)
-						else
-							setPropValue(self, target, propName, start)
-						end
-					end)
-				else
-					interp.Changed:Connect(function (t: number)
+					setup = function()
+						start = start.Keypoints[1].Value
+						goal = goal.Keypoints[1].Value
+					end
+
+					handler = function(t: number)
 						local value = lerp(start, goal, t)
-						setPropValue(self, target, propName, value)
-					end)
+						return ColorSequence.new(value)
+					end
+				elseif typeof(goal) == "NumberSequence" then
+					setup = function()
+						start = start.Keypoints[1].Value
+						goal = goal.Keypoints[1].Value
+					end
+
+					handler = function(t: number)
+						local value = lerp(start, goal, t)
+						return NumberSequence.new(value)
+					end
+				elseif typeof(goal) == "NumberRange" then
+					setup = function()
+						start = start.Min
+						goal = goal.Min
+					end
+
+					handler = function(t: number)
+						local value = lerp(start, goal, t)
+						return NumberRange.new(value)
+					end
+				elseif typeof(goal) == "Instance" or type(goal) == "nil" or type(goal) == "boolean" then
+					handler = function(t: number)
+						-- Presumably constant
+						print(t, start, goal)
+
+						if t >= 1 then
+							return goal
+						else
+							return start
+						end
+					end
 				end
-				
+
 				-- stylua: ignore
 				local tweenInfo = TweenInfo.new(
 					tweenTime,
 					Enum.EasingStyle.Linear
 				)
-				
+
 				local tween = TweenService:Create(interp, tweenInfo, {
-					Value = 1
+					Value = 1,
 				})
-				
+
 				local function dispatch()
 					local gotStart, setStart = getPropValue(self, target, propName)
-					
+
 					if gotStart then
 						start = setStart
+
+						if setup then
+							task.spawn(setup)
+						end
+
+						local function stepInterp(raw: number)
+							local t = easeFunc(raw)
+							local value
+
+							if handler then
+								value = handler(t)
+							else
+								value = lerp(start, goal, t)
+							end
+
+							setPropValue(self, target, propName, value)
+						end
+
+						interp.Changed:Connect(stepInterp)
+						task.spawn(stepInterp, 0)
 						tween:Play()
-						
+
 						-- For some reason the playback chain breaks
 						-- when this is excluded...
-						-- TODO: Investigate why
-						
-						tween.Completed:Connect(function (state)
+						-- TODO: Investigate why?
+
+						tween.Completed:Connect(function(state)
 							if state == Enum.PlaybackState.Completed then
 								interp.Value = 1
 							end
 						end)
 					end
 				end
-				
+
 				if lastTween then
-					lastTween.Completed:Once(function(state)
+					lastTween.Completed:Connect(function(state)
 						if state == Enum.PlaybackState.Completed then
 							dispatch()
 						end
 					end)
 				else
-					dispatch()
+					task.spawn(dispatch)
 				end
-				
+
 				lastTime = timeStamp
 				lastTween = tween
+				lastEase = ease
 			end
 
 			if lastTween then
 				self._playing[prop] = true
-				
-				lastTween.Completed:Once(function(state)
+
+				lastTween.Completed:Connect(function(state)
 					if state ~= Enum.PlaybackState.Completed then
 						return
 					end
@@ -655,11 +682,23 @@ function MoonliteTrack.Play(self: Track)
 
 					if not next(self._playing) then
 						self._completed:Fire()
+
+						if self.Looped then
+							task.spawn(self.Play, self)
+						end
 					end
 				end)
 			end
 		end
 	end
+end
+
+function MoonliteTrack.GetSetting(self: Track, name: string): any
+	return self._scratch[name]
+end
+
+function MoonliteTrack.SetSetting(self: Track, name: string, value: any)
+	self._scratch[name] = value
 end
 
 return Moonlite
