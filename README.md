@@ -22,8 +22,11 @@ Moonlite.CreatePlayer(save: StringValue) -> MoonliteTrack
 Loads the provided MoonAnimator save to be played back.
 
 ### 🌖 MoonliteTrack
+MoonliteTrack is a type exported from the module that represents a playback track.
 
-MoonliteTrack is a type exported from the module that represents a track.
+```
+type Track = Moonlite.Track
+```
 
 #### Play
 ```lua
