@@ -542,7 +542,7 @@ local function get(maybeInfo: MoonEaseInfo?): (value: number) -> number
 
 		-- stylua: ignore
 		local impl = EaseFuncs[`{dir}{style}`]
-			      or EaseFuncs[style]
+		          or EaseFuncs[style]
 
 		if impl then
 			local func: EaseFunc
