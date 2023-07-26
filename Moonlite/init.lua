@@ -1,15 +1,19 @@
--- Moonlite
--- Author: MaximumADHD
--- Description: A WIP lightweight in-game player for sequences created in Moon Animator (by xSIXx)
--- Version: 0.6.0
-
---[[
+------------------------------------------------------------------------
+-- 🌙 Moonlite
+-- by: MaximumADHD
+--
+-- A WIP lightweight in-game player for sequences
+-- created in Moon Animator (by xSIXx)
+--
+------------------------------------------------------------------------
+--[[ Version: 0.6.1
+------------------------------------------------------------------------
 
 == API ==
 
-------------------------------------
+------------------------------------------------------------------------
 -- Moonlite
-------------------------------------
+------------------------------------------------------------------------
 
 Moonlite.CreatePlayer(save: StringValue) -> MoonliteTrack
 ~ Loads the provided MoonAnimator save to be played back.
@@ -17,9 +21,9 @@ Moonlite.CreatePlayer(save: StringValue) -> MoonliteTrack
 type MoonliteTrack = Moonlite.Track
 ~ Type exported from this module that represents a track.
 
-------------------------------------
+------------------------------------------------------------------------
 -- MoonliteTrack
-------------------------------------
+------------------------------------------------------------------------
 
 MoonliteTrack:Play() -> ()
 ~ Starts playing the track's elements.
@@ -36,7 +40,7 @@ MoonliteTrack:IsPlaying() -> boolean
 ~ Returns true if the track still has elements playing.
 
 MoonliteTrack:GetSetting(name: string) -> any
-~ Returns a value stored in the track's working scratchpad.
+~ Gets a value stored in the track's working scratchpad.
   Can be used to get custom data or make behavior tweaks 
   to specials.
 
@@ -51,7 +55,7 @@ MoonliteTrack.Looped: boolean
 MoonliteTrack.Completed: RBXScriptSignal
 ~ Fired when playback of the track is completed.
 
-------------------------------------
+------------------------------------------------------------------------
 
 == END API ==
 
@@ -91,7 +95,6 @@ MoonliteTrack.__index = MoonliteTrack
 
 -- stylua: ignore
 export type Track = typeof(setmetatable({} :: {
-	PlaybackSpeed: number,
 	Completed: Event,
 	Looped: boolean,
 
@@ -105,6 +108,14 @@ export type Track = typeof(setmetatable({} :: {
 
 	_scratch: Scratchpad,
 }, MoonliteTrack))
+
+local function lerp<T>(a: T, b: T, t: number): any
+	if type(a) == "number" then
+		return a + ((b - a) * t)
+	else
+		return (a :: any):Lerp(b, t)
+	end
+end
 
 local function resolveAnimPath(path: MoonAnimPath?): Instance?
 	if not path then
@@ -212,14 +223,6 @@ local function parseEaseOld(easeInst: Instance): MoonEaseInfo
 			Direction = dir.Value :: any,
 		},
 	}
-end
-
-local function lerp<T>(a: T, b: T, t: number): any
-	if typeof(a) == "number" then
-		return a + ((b - a) * t)
-	else
-		return (a :: any):Lerp(b, t)
-	end
 end
 
 local function readValue(value: Instance)
@@ -505,12 +508,21 @@ function MoonliteTrack.IsPlaying(self: Track)
 	return next(self._playing) ~= nil
 end
 
+function MoonliteTrack.GetSetting(self: Track, name: string): any
+	return self._scratch[name]
+end
+
+function MoonliteTrack.SetSetting(self: Track, name: string, value: any)
+	self._scratch[name] = value
+end
+
 function MoonliteTrack.Stop(self: Track)
 	while #self._tweens > 0 do
 		local tween = table.remove(self._tweens)
 
 		if tween then
 			tween:Cancel()
+			tween:Destroy()
 		end
 	end
 
@@ -614,6 +626,17 @@ function MoonliteTrack.Play(self: Track)
 					Value = 1,
 				})
 
+				local function stepInterp(raw: number)
+					local t = easeFunc(raw)
+
+					-- stylua: ignore
+					local value = if not handler
+						then lerp(start, goal, t)
+						else handler(t)
+
+					setPropValue(self, target, propName, value)
+				end
+
 				local function dispatch()
 					local gotStart, setStart = getPropValue(self, target, propName)
 
@@ -622,19 +645,6 @@ function MoonliteTrack.Play(self: Track)
 
 						if setup then
 							task.spawn(setup)
-						end
-
-						local function stepInterp(raw: number)
-							local t = easeFunc(raw)
-							local value
-
-							if handler then
-								value = handler(t)
-							else
-								value = lerp(start, goal, t)
-							end
-
-							setPropValue(self, target, propName, value)
 						end
 
 						interp.Changed:Connect(stepInterp)
@@ -689,14 +699,6 @@ function MoonliteTrack.Play(self: Track)
 			end
 		end
 	end
-end
-
-function MoonliteTrack.GetSetting(self: Track, name: string): any
-	return self._scratch[name]
-end
-
-function MoonliteTrack.SetSetting(self: Track, name: string, value: any)
-	self._scratch[name] = value
 end
 
 return Moonlite

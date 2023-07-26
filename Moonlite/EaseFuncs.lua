@@ -538,35 +538,26 @@ local function get(maybeInfo: MoonEaseInfo?): (value: number) -> number
 	if FUNC_CACHE[hashKey] == nil then
 		local params = info.Params
 		local style: MoonEaseType = info.Type or "Linear"
-		local dir: MoonEaseDir? = params.Direction or "Out"
+		local dir: MoonEaseDir? = params.Direction or "In"
 
 		-- stylua: ignore
 		local impl = EaseFuncs[`{dir}{style}`]
 		          or EaseFuncs[style]
 
 		if impl then
-			local func: EaseFunc
+			local arg1: number
+			local arg2: number
 
 			if style == "Elastic" then
-				local period = params.Period or 0.3
-				local amplitude = params.Amplitude or 1
-
-				func = function(value)
-					return impl(value, 0, 1, 1, amplitude, period)
-				end
+				arg1 = params.Amplitude or 1
+				arg2 = params.Period or 0.3
 			elseif style == "Back" then
-				local overshoot = params.Overshoot or 1.70158
-
-				func = function(value)
-					return impl(value, 0, 1, 1, overshoot)
-				end
-			else
-				func = function(value)
-					return impl(value, 0, 1, 1)
-				end
+				arg1 = params.Overshoot or 1.70158
 			end
 
-			FUNC_CACHE[hashKey] = func
+			FUNC_CACHE[hashKey] = function(value)
+				return impl(value, 0, 1, 1, arg1, arg2)
+			end
 		else
 			return get(DEFAULT_INFO)
 		end
