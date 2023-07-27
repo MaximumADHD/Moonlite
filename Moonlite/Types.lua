@@ -57,8 +57,12 @@ export type MoonProperty = {
 	Sequence: { MoonKeyframe },
 }
 
-export type MoonInstance = {
+export type MoonElement = {
 	Target: Instance?,
+
+	Locks: {
+		[any]: true,
+	},
 
 	Props: {
 		[string]: MoonProperty,

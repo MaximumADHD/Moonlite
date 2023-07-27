@@ -1,65 +1,13 @@
 ------------------------------------------------------------------------
--- 🌙 Moonlite
+-- 🌙 Moonlite (v0.7.0)
 -- by: MaximumADHD
 --
--- A WIP lightweight in-game player for sequences
--- created in Moon Animator (by xSIXx)
+-- A light-weight runtime player for sequences
+-- created in Moon Animator 2 (by xsixx)
 --
+-- Documentation is available on GitHub:
+-- https://www.github.com/MaximumADHD/Moonlite#readme
 ------------------------------------------------------------------------
---[[ Version: 0.6.1
-------------------------------------------------------------------------
-
-== API ==
-
-------------------------------------------------------------------------
--- Moonlite
-------------------------------------------------------------------------
-
-Moonlite.CreatePlayer(save: StringValue) -> MoonliteTrack
-~ Loads the provided MoonAnimator save to be played back.
-
-type MoonliteTrack = Moonlite.Track
-~ Type exported from this module that represents a track.
-
-------------------------------------------------------------------------
--- MoonliteTrack
-------------------------------------------------------------------------
-
-MoonliteTrack:Play() -> ()
-~ Starts playing the track's elements.
-  Has no effect if already playing.
-
-MoonliteTrack:Stop() -> ()
-~ Stops all playing track elements.
-
-MoonliteTrack:Reset() -> ()
-~ Resets any modified properties to their declared defaults
-  Calling this while a track is playing is undefined behavior
-
-MoonliteTrack:IsPlaying() -> boolean
-~ Returns true if the track still has elements playing.
-
-MoonliteTrack:GetSetting(name: string) -> any
-~ Gets a value stored in the track's working scratchpad.
-  Can be used to get custom data or make behavior tweaks 
-  to specials.
-
-MoonliteTrack:SetSetting(name: string, value: any)
-~ Sets a value in the track's working scratchpad.
-  Can be used to set custom data or make behavior tweaks 
-  to specials.
-
-MoonliteTrack.Looped: boolean
-~ Whether the track playback will loop on completion.
-
-MoonliteTrack.Completed: RBXScriptSignal
-~ Fired when playback of the track is completed.
-
-------------------------------------------------------------------------
-
-== END API ==
-
-]]
 
 --!strict
 local Moonlite = {}
@@ -78,36 +26,46 @@ end
 
 type Event = Types.Event
 type Scratchpad = Types.Scratchpad
+type MoonElement = Types.MoonElement
 type MoonAnimInfo = Types.MoonAnimInfo
 type MoonAnimItem = Types.MoonAnimItem
 type MoonAnimPath = Types.MoonAnimPath
 type MoonAnimSave = Types.MoonAnimSave
 type MoonEaseInfo = Types.MoonEaseInfo
-type MoonInstance = Types.MoonInstance
 type MoonKeyframe = Types.MoonKeyframe
 type MoonProperty = Types.MoonProperty
 type MoonJointInfo = Types.MoonJointInfo
 type MoonKeyframePack = Types.MoonKeyframePack
 type GetSet<Inst, Value> = Types.GetSet<Inst, Value>
 
-local MoonliteTrack = {}
-MoonliteTrack.__index = MoonliteTrack
+local MoonTrack = {}
+MoonTrack.__index = MoonTrack
+
+local CONSTANT_INTERPS = {
+	["Instance"] = true,
+	["boolean"] = true,
+	["nil"] = true,
+}
 
 -- stylua: ignore
-export type Track = typeof(setmetatable({} :: {
+export type MoonTrack = typeof(setmetatable({} :: {
 	Completed: Event,
 	Looped: boolean,
 
 	_tweens: { Tween },
 	_completed: BindableEvent,
-	_targets: { MoonInstance },
+	_elements: { MoonElement },
+
+	_targets: {
+		[Instance]: MoonElement
+	},
 
 	_playing: {
 		[MoonProperty]: true,
 	},
 
 	_scratch: Scratchpad,
-}, MoonliteTrack))
+}, MoonTrack))
 
 local function lerp<T>(a: T, b: T, t: number): any
 	if type(a) == "number" then
@@ -253,7 +211,7 @@ local function readValue(value: Instance)
 	end
 end
 
-local function getPropValue(self: Track, inst: Instance?, prop: string): (boolean, any?)
+local function getPropValue(self: MoonTrack, inst: Instance?, prop: string): (boolean, any?)
 	if inst then
 		local propTable = Specials.Get(inst)
 		local propHandler = propTable[prop]
@@ -268,7 +226,7 @@ local function getPropValue(self: Track, inst: Instance?, prop: string): (boolea
 	end)
 end
 
-local function setPropValue(self: Track, inst: Instance?, prop: string, value: any): boolean
+local function setPropValue(self: MoonTrack, inst: Instance?, prop: string, value: any): boolean
 	if inst then
 		local propTable = Specials.Get(inst)
 		local propHandler = propTable and propTable[prop]
@@ -392,10 +350,14 @@ local function unpackKeyframes(container: Instance, modifier: ((any) -> any)?)
 	return sequence
 end
 
-function Moonlite.CreatePlayer(save: StringValue): Track
+function Moonlite.CreatePlayer(save: StringValue): MoonTrack
 	local saveData: MoonAnimSave = HttpService:JSONDecode(save.Value)
 	local completed = Instance.new("BindableEvent")
-	local targets = {} :: { MoonInstance }
+	local elements: { MoonElement } = {}
+
+	local targets = {} :: {
+		[Instance]: MoonElement,
+	}
 
 	for id, item in saveData.Items do
 		local path = item.Path
@@ -415,14 +377,14 @@ function Moonlite.CreatePlayer(save: StringValue): Track
 		if rig and itemType == "Rig" then
 			local joints = resolveJoints(target)
 
-			for i, joint in rig:GetChildren() do
-				if joint.Name ~= "_joint" then
+			for i, jointData in rig:GetChildren() do
+				if jointData.Name ~= "_joint" then
 					continue
 				end
 
-				local hier = joint:FindFirstChild("_hier")
-				local default: any = joint:FindFirstChild("default")
-				local keyframes = joint:FindFirstChild("_keyframes")
+				local hier = jointData:FindFirstChild("_hier")
+				local default: any = jointData:FindFirstChild("default")
+				local keyframes = jointData:FindFirstChild("_keyframes")
 
 				if default then
 					default = readValue(default)
@@ -450,29 +412,31 @@ function Moonlite.CreatePlayer(save: StringValue): Track
 					end
 
 					if data then
-						local jointAnim: MoonInstance = {
-							Target = data.Joint,
+						local joint = data.Joint
 
-							Props = {
-								Transform = {
-									Default = CFrame.identity,
+						local props: any = {
+							Transform = {
+								Default = CFrame.identity,
 
-									Sequence = unpackKeyframes(keyframes, function(c1: CFrame)
-										return c1:Inverse() * default
-									end),
-								},
+								Sequence = unpackKeyframes(keyframes, function(c1: CFrame)
+									return c1:Inverse() * default
+								end),
 							},
 						}
 
-						table.insert(targets, jointAnim)
+						local element = {
+							Locks = {},
+							Props = props,
+							Instance = joint,
+						}
+
+						targets[joint] = element
+						table.insert(elements, element)
 					end
 				end
 			end
 		else
-			local instData = {
-				Target = target,
-				Props = {},
-			}
+			local props = {}
 
 			for i, prop in frame:GetChildren() do
 				local default: any = prop:FindFirstChild("default")
@@ -481,42 +445,116 @@ function Moonlite.CreatePlayer(save: StringValue): Track
 					default = readValue(default)
 				end
 
-				instData.Props[prop.Name] = {
+				props[prop.Name] = {
 					Default = default,
 					Sequence = unpackKeyframes(prop),
 				}
 			end
 
-			table.insert(targets, instData)
+			local element = {
+				Locks = {},
+				Props = props,
+				Target = target,
+			}
+
+			targets[target] = element
+			table.insert(elements, element)
 		end
 	end
 
 	return setmetatable({
-		PlaybackSpeed = 1,
 		Looped = saveData.Information.Looped,
 		Completed = completed.Event,
 
 		_completed = completed,
+		_elements = elements,
 		_targets = targets,
-		_scratch = {},
+
 		_playing = {},
+		_scratch = {},
 		_tweens = {},
-	}, MoonliteTrack)
+	}, MoonTrack)
 end
 
-function MoonliteTrack.IsPlaying(self: Track)
+function MoonTrack.IsPlaying(self: MoonTrack)
 	return next(self._playing) ~= nil
 end
 
-function MoonliteTrack.GetSetting(self: Track, name: string): any
+function MoonTrack.GetSetting<T>(self: MoonTrack, name: string): T
 	return self._scratch[name]
 end
 
-function MoonliteTrack.SetSetting(self: Track, name: string, value: any)
+function MoonTrack.SetSetting<T>(self: MoonTrack, name: string, value: T)
 	self._scratch[name] = value
 end
 
-function MoonliteTrack.Stop(self: Track)
+function MoonTrack.GetElements(self: MoonTrack): { Instance }
+	local elements = {}
+
+	for target in self._targets do
+		table.insert(elements, target)
+	end
+
+	return elements
+end
+
+function MoonTrack.LockElement(self: MoonTrack, inst: Instance?, lock: any?)
+	local element = inst and self._targets[inst]
+
+	if element then
+		element.Locks[lock or "Default"] = true
+		return true
+	end
+
+	return false
+end
+
+function MoonTrack.UnlockElement(self: MoonTrack, inst: Instance?, lock: any?)
+	local element = inst and self._targets[inst]
+
+	if element then
+		element.Locks[lock or "Default"] = nil
+		return true
+	end
+
+	return false
+end
+
+function MoonTrack.IsElementLocked(self: MoonTrack, inst: Instance?): boolean
+	local element = inst and self._targets[inst]
+
+	if element and next(element.Locks) then
+		return true
+	end
+
+	return false
+end
+
+function MoonTrack.FindElement(self: MoonTrack, name: string): Instance?
+	for i, element in ipairs(self._elements) do
+		local target = element.Target
+
+		if target and target.Name == name then
+			return target
+		end
+	end
+
+	return nil
+end
+
+function MoonTrack.FindElementOfType(self: MoonTrack, typeName: string): Instance?
+	for i, element in ipairs(self._elements) do
+		local target = element.Target
+
+		if target and target:IsA(typeName) then
+			return target
+		end
+	end
+
+	return nil
+end
+
+function MoonTrack.Stop(self: MoonTrack)
 	while #self._tweens > 0 do
 		local tween = table.remove(self._tweens)
 
@@ -529,27 +567,32 @@ function MoonliteTrack.Stop(self: Track)
 	table.clear(self._playing)
 end
 
-function MoonliteTrack.Reset(self: Track)
-	for id, inst in self._targets do
-		for name, data in inst.Props do
-			setPropValue(self, inst.Target, name, data.Default)
+function MoonTrack.Reset(self: MoonTrack)
+	if self:IsPlaying() then
+		return false
+	end
+
+	for inst, element in self._targets do
+		for name, data in element.Props do
+			setPropValue(self, inst, name, data.Default)
 		end
 	end
+
+	return true
 end
 
-function MoonliteTrack.Play(self: Track)
+function MoonTrack.Play(self: MoonTrack)
 	if self:IsPlaying() then
 		return
 	end
 
-	for id, inst in self._targets do
-		local target: any = inst.Target
-
-		if not target then
+	for target, element in self._targets do
+		if next(element.Locks) then
+			print(target, "is locked!")
 			continue
 		end
 
-		for propName, prop in inst.Props do
+		for propName, prop in element.Props do
 			if not setPropValue(self, target, propName, prop.Default) then
 				continue
 			end
@@ -605,9 +648,8 @@ function MoonliteTrack.Play(self: Track)
 						local value = lerp(start, goal, t)
 						return NumberRange.new(value)
 					end
-				elseif typeof(goal) == "Instance" or type(goal) == "nil" or type(goal) == "boolean" then
+				elseif CONSTANT_INTERPS[typeof(goal)] then
 					handler = function(t: number)
-						-- Presumably constant
 						if t >= 1 then
 							return goal
 						else
@@ -651,9 +693,8 @@ function MoonliteTrack.Play(self: Track)
 						task.spawn(stepInterp, 0)
 						tween:Play()
 
-						-- For some reason the playback chain breaks
-						-- when this is excluded...
-						-- TODO: Investigate why?
+						-- For some reason the playback chain breaks when this is excluded...
+						-- TODO: Switch to a proper timeline system instead of using tween chains.
 
 						tween.Completed:Connect(function(state)
 							if state == Enum.PlaybackState.Completed then
