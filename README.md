@@ -48,7 +48,7 @@ MoonTrack:Reset() -> boolean
 ```
 Manually resets  all element's properties to their expected defaults. Returns `true` if the reset was successful.
 
->**Note:** This will only work if the track is not playing. Elements that are locked will not be modified.<br/> 
+>**Note:** This will only work if the track is not playing.
 
 ## IsPlaying
 ```ts
