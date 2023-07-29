@@ -86,10 +86,7 @@ Removes a mutex lock from the provided element, enabling it to be modified again
 MoonTrack:IsElementLocked(inst: Instance?) -> boolean
 ```
 
-Removes a mutex lock from the provided element, enabling it to be modified again if there are no other locks on it. Returns `true` if the element is valid and no longer has the provided lock.
-
->**Note:** If provided, the value of `lock` must be a truthy type (i.e. not `false` or `nil`), otherwise it will fallback to `"Default"`.
->**Warning:** Calling this while the track is playing won't take effect until the track plays again.
+Returns `true` if there are any locks on the provided element.
 
 ## FindElement
 ```ts
