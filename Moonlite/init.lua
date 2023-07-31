@@ -1,5 +1,5 @@
 ------------------------------------------------------------------------
--- 🌙 Moonlite (v0.7.0)
+-- 🌙 Moonlite (v0.8.0)
 -- by: MaximumADHD
 --
 -- A light-weight runtime player for sequences
@@ -213,11 +213,16 @@ end
 
 local function getPropValue(self: MoonTrack, inst: Instance?, prop: string): (boolean, any?)
 	if inst then
-		local propTable = Specials.Get(inst)
-		local propHandler = propTable[prop]
+		local binding = Specials.Get(self._scratch, inst, prop)
 
-		if propHandler then
-			return pcall(propHandler.Get, self._scratch, inst)
+		if binding then
+			local get = binding.Get
+
+			if get then
+				return pcall(get, inst)
+			else
+				return true, binding.Default
+			end
 		end
 	end
 
@@ -228,11 +233,14 @@ end
 
 local function setPropValue(self: MoonTrack, inst: Instance?, prop: string, value: any): boolean
 	if inst then
-		local propTable = Specials.Get(inst)
-		local propHandler = propTable and propTable[prop]
+		local binding = Specials.Get(self._scratch, inst, prop)
 
-		if propHandler then
-			return pcall(propHandler.Set, self._scratch, inst, value)
+		if binding then
+			if not self:IsPlaying() and binding.Get == nil then
+				value = false
+			end
+
+			return pcall(binding.Set, value)
 		end
 	end
 

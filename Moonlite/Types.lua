@@ -96,9 +96,10 @@ export type Scratchpad = {
 	[string]: any,
 }
 
-export type GetSet<Inst, Value> = {
-	Get: (work: Scratchpad, inst: Inst) -> Value,
-	Set: (work: Scratchpad, inst: Inst, value: Value) -> (),
+export type GetSet<Value, Args...> = {
+	Get: ((Args...) -> Value)?,
+	Set: (Value, Args...) -> (),
+	Default: Value?,
 }
 
 return {}
