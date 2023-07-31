@@ -1,5 +1,5 @@
 ------------------------------------------------------------------------
--- 🌙 Moonlite (v0.8.0)
+-- 🌙 Moonlite (v0.8.1)
 -- by: MaximumADHD
 --
 -- A light-weight runtime player for sequences
@@ -231,12 +231,16 @@ local function getPropValue(self: MoonTrack, inst: Instance?, prop: string): (bo
 	end)
 end
 
-local function setPropValue(self: MoonTrack, inst: Instance?, prop: string, value: any): boolean
+local function setPropValue(self: MoonTrack, inst: Instance?, prop: string, value: any, isDefault: boolean?): boolean
 	if inst then
 		local binding = Specials.Get(self._scratch, inst, prop)
 
 		if binding then
-			if not self:IsPlaying() and binding.Get == nil then
+			if binding.Get == nil and isDefault and value == true then
+				-- Ugh, This is an action(?), but for some reason six
+				-- sets the default value to true here, which
+				-- would behave as an immediate dispatch.
+				-- Not the behavior we need.
 				value = false
 			end
 
@@ -582,7 +586,7 @@ function MoonTrack.Reset(self: MoonTrack)
 
 	for inst, element in self._targets do
 		for name, data in element.Props do
-			setPropValue(self, inst, name, data.Default)
+			setPropValue(self, inst, name, data.Default, true)
 		end
 	end
 
@@ -601,7 +605,7 @@ function MoonTrack.Play(self: MoonTrack)
 		end
 
 		for propName, prop in element.Props do
-			if not setPropValue(self, target, propName, prop.Default) then
+			if not setPropValue(self, target, propName, prop.Default, true) then
 				continue
 			end
 
