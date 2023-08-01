@@ -1,5 +1,5 @@
 ------------------------------------------------------------------------
--- 🌙 Moonlite (v0.8.1)
+-- 🌙 Moonlite
 -- by: MaximumADHD
 --
 -- A light-weight runtime player for sequences

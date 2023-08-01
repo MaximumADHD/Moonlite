@@ -1,0 +1,16 @@
+{
+    "name": "Moonlite",
+
+    "tree": {
+        "$className": "DataModel",
+
+        "ReplicatedStorage": {
+            "$className": "ReplicatedStorage",
+            "$ignoreUnknownInstances": true,
+
+            "Moonlite": {
+                "$path": "Moonlite"
+            }
+        }
+    }
+}

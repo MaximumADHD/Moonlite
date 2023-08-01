@@ -5,7 +5,7 @@
         {
             "type": "shell",
             "label": "Build",
-            "command": "rojo build --output Moonlite.rbxm make.project.json",
+            "command": "rojo build --output Moonlite.rbxm default.project.json",
             
             "group": {
                 "kind": "build",
