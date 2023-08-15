@@ -1,7 +1,7 @@
 [package]
 name = "maximumadhd/moonlite"
 description = "A light-weight, runtime player for sequences created in Moon Animator 2."
-version = "0.8.2"
+version = "0.9.0"
 license = "MIT"
 registry = "https://github.com/MaximumADHD/Moonlite"
 realm = "shared"

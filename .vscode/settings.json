@@ -4,5 +4,8 @@
 		"editor.detectIndentation": false,
 		"editor.insertSpaces": false,
 		"editor.formatOnSave": true
-	}
+	},
+	"robloxLsp.diagnostics.disable": [
+		"unused-local"
+	]
 }

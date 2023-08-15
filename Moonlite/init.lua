@@ -64,7 +64,12 @@ export type MoonTrack = typeof(setmetatable({} :: {
 		[MoonProperty]: true,
 	},
 
+	_root: Instance?,
+	_save: StringValue,
+	_data: MoonAnimSave,
+
 	_scratch: Scratchpad,
+	_compiled: boolean,
 }, MoonTrack))
 
 local function lerp<T>(a: T, b: T, t: number): any
@@ -75,13 +80,17 @@ local function lerp<T>(a: T, b: T, t: number): any
 	end
 end
 
-local function resolveAnimPath(path: MoonAnimPath?): Instance?
+local function toPath(path: MoonAnimPath): string
+	return table.concat(path.InstanceNames, ".")
+end
+
+local function resolveAnimPath(path: MoonAnimPath?, root: Instance?): Instance?
 	if not path then
 		return nil
 	end
 
 	local numSteps = #path.InstanceNames
-	local current: Instance = game
+	local current: Instance = root or game
 
 	local success = pcall(function()
 		for i = 2, numSteps do
@@ -362,129 +371,166 @@ local function unpackKeyframes(container: Instance, modifier: ((any) -> any)?)
 	return sequence
 end
 
-function Moonlite.CreatePlayer(save: StringValue): MoonTrack
-	local saveData: MoonAnimSave = HttpService:JSONDecode(save.Value)
-	local completed = Instance.new("BindableEvent")
-	local elements: { MoonElement } = {}
+local function compileItem(self: MoonTrack, item: MoonAnimItem)
+	local id = table.find(self._data.Items, item)
 
-	local targets = {} :: {
-		[Instance]: MoonElement,
-	}
-
-	for id, item in saveData.Items do
-		local path = item.Path
-		local itemType = path.ItemType
-
-		local target = resolveAnimPath(path)
-		local frame = save:FindFirstChild(tostring(id))
-		local rig = frame and frame:FindFirstChild("Rig")
-
-		if not (target and frame) then
-			continue
-		end
-
-		assert(target)
-		assert(frame)
-
-		if rig and itemType == "Rig" then
-			local joints = resolveJoints(target)
-
-			for i, jointData in rig:GetChildren() do
-				if jointData.Name ~= "_joint" then
-					continue
-				end
-
-				local hier = jointData:FindFirstChild("_hier")
-				local default: any = jointData:FindFirstChild("default")
-				local keyframes = jointData:FindFirstChild("_keyframes")
-
-				if default then
-					default = readValue(default)
-				end
-
-				if hier and keyframes then
-					local tree = readValue(hier)
-					local readName = tree:gmatch("[^%.]+")
-
-					local name = readName()
-					local data: MoonJointInfo? = joints[name]
-
-					while data do
-						local children = data.Children
-						name = readName()
-
-						if name == nil then
-							break
-						elseif children[name] then
-							data = children[name]
-						else
-							warn(`failed to resolve joint '{tree}' (could not find child '{name}' in {data.Name}!)`)
-							data = nil
-						end
-					end
-
-					if data then
-						local joint = data.Joint
-
-						local props: any = {
-							Transform = {
-								Default = CFrame.identity,
-
-								Sequence = unpackKeyframes(keyframes, function(c1: CFrame)
-									return c1:Inverse() * default
-								end),
-							},
-						}
-
-						local element = {
-							Locks = {},
-							Props = props,
-							Instance = joint,
-						}
-
-						targets[joint] = element
-						table.insert(elements, element)
-					end
-				end
-			end
-		else
-			local props = {}
-
-			for i, prop in frame:GetChildren() do
-				local default: any = prop:FindFirstChild("default")
-
-				if default then
-					default = readValue(default)
-				end
-
-				props[prop.Name] = {
-					Default = default,
-					Sequence = unpackKeyframes(prop),
-				}
-			end
-
-			local element = {
-				Locks = {},
-				Props = props,
-				Target = target,
-			}
-
-			targets[target] = element
-			table.insert(elements, element)
-		end
+	if not id then
+		return
 	end
 
+	local path = item.Path
+	local itemType = path.ItemType
+
+	local target = item.Override or resolveAnimPath(path, self._root)
+	local frame = self._save:FindFirstChild(tostring(id))
+	local rig = frame and frame:FindFirstChild("Rig")
+
+	if not (target and frame) then
+		return
+	end
+
+	assert(target)
+	assert(frame)
+
+	if rig and itemType == "Rig" then
+		local joints = resolveJoints(target)
+
+		for i, jointData in rig:GetChildren() do
+			if jointData.Name ~= "_joint" then
+				continue
+			end
+
+			local hier = jointData:FindFirstChild("_hier")
+			local default: any = jointData:FindFirstChild("default")
+			local keyframes = jointData:FindFirstChild("_keyframes")
+
+			if default then
+				default = readValue(default)
+			end
+
+			if hier and keyframes then
+				local tree = readValue(hier)
+				local readName = tree:gmatch("[^%.]+")
+
+				local name = readName()
+				local data: MoonJointInfo? = joints[name]
+
+				while data do
+					local children = data.Children
+					name = readName()
+
+					if name == nil then
+						break
+					elseif children[name] then
+						data = children[name]
+					else
+						warn(`failed to resolve joint '{tree}' (could not find child '{name}' in {data.Name}!)`)
+						data = nil
+					end
+				end
+
+				if data then
+					local joint = data.Joint
+
+					local props: any = {
+						Transform = {
+							Default = CFrame.identity,
+
+							Sequence = unpackKeyframes(keyframes, function(c1: CFrame)
+								return c1:Inverse() * default
+							end),
+						},
+					}
+
+					local element = {
+						Locks = {},
+						Props = props,
+						Instance = joint,
+					}
+
+					self._targets[joint] = element
+					table.insert(self._elements, element)
+				end
+			end
+		end
+	else
+		local props = {}
+
+		for i, prop in frame:GetChildren() do
+			local default: any = prop:FindFirstChild("default")
+
+			if default then
+				default = readValue(default)
+			end
+
+			props[prop.Name] = {
+				Default = default,
+				Sequence = unpackKeyframes(prop),
+			}
+		end
+
+		local element = {
+			Locks = {},
+			Props = props,
+			Target = target,
+		}
+
+		self._targets[target] = element
+		table.insert(self._elements, element)
+	end
+end
+
+local function compileRouting(self: MoonTrack)
+	local elements = self._elements
+	table.clear(elements)
+
+	local targets = self._targets
+	table.clear(targets)
+
+	for id, item in self._data.Items do
+		compileItem(self, item)
+	end
+
+	self._compiled = true
+end
+
+local function getElements(self: MoonTrack)
+	if not self._compiled then
+		compileRouting(self)
+	end
+
+	return self._elements
+end
+
+local function getTargets(self: MoonTrack)
+	if not self._compiled then
+		compileRouting(self)
+	end
+
+	return self._targets
+end
+
+function Moonlite.CreatePlayer(save: StringValue, root: Instance?): MoonTrack
+	local data: MoonAnimSave = HttpService:JSONDecode(save.Value)
+	local completed = Instance.new("BindableEvent")
+
 	return setmetatable({
-		Looped = saveData.Information.Looped,
+		Looped = data.Information.Looped,
 		Completed = completed.Event,
 
+		_save = save,
+		_data = data,
+
 		_completed = completed,
-		_elements = elements,
-		_targets = targets,
+		_compiled = false,
+
+		_elements = {},
+		_targets = {},
 
 		_playing = {},
 		_scratch = {},
 		_tweens = {},
+		_root = root,
 	}, MoonTrack)
 end
 
@@ -503,7 +549,7 @@ end
 function MoonTrack.GetElements(self: MoonTrack): { Instance }
 	local elements = {}
 
-	for target in self._targets do
+	for target in getTargets(self) do
 		table.insert(elements, target)
 	end
 
@@ -511,7 +557,8 @@ function MoonTrack.GetElements(self: MoonTrack): { Instance }
 end
 
 function MoonTrack.LockElement(self: MoonTrack, inst: Instance?, lock: any?)
-	local element = inst and self._targets[inst]
+	local targets = getTargets(self)
+	local element = inst and targets[inst]
 
 	if element then
 		element.Locks[lock or "Default"] = true
@@ -522,7 +569,8 @@ function MoonTrack.LockElement(self: MoonTrack, inst: Instance?, lock: any?)
 end
 
 function MoonTrack.UnlockElement(self: MoonTrack, inst: Instance?, lock: any?)
-	local element = inst and self._targets[inst]
+	local targets = getTargets(self)
+	local element = inst and targets[inst]
 
 	if element then
 		element.Locks[lock or "Default"] = nil
@@ -533,7 +581,8 @@ function MoonTrack.UnlockElement(self: MoonTrack, inst: Instance?, lock: any?)
 end
 
 function MoonTrack.IsElementLocked(self: MoonTrack, inst: Instance?): boolean
-	local element = inst and self._targets[inst]
+	local targets = getTargets(self)
+	local element = inst and targets[inst]
 
 	if element and next(element.Locks) then
 		return true
@@ -542,8 +591,31 @@ function MoonTrack.IsElementLocked(self: MoonTrack, inst: Instance?): boolean
 	return false
 end
 
+function MoonTrack.ReplaceElementByPath(self: MoonTrack, targetPath: string, replacement: Instance)
+	for i, item in self._data.Items do
+		local path = item.Path
+		local id = toPath(path)
+
+		if targetPath:lower() == id:lower() then
+			local itemType = path.ItemType
+
+			if itemType == "Rig" or replacement:IsA(path.ItemType) then
+				item.Override = replacement
+
+				if self._compiled then
+					compileItem(self, item)
+				end
+
+				return true
+			end
+		end
+	end
+
+	return false
+end
+
 function MoonTrack.FindElement(self: MoonTrack, name: string): Instance?
-	for i, element in ipairs(self._elements) do
+	for i, element in getElements(self) do
 		local target = element.Target
 
 		if target and target.Name == name then
@@ -555,7 +627,7 @@ function MoonTrack.FindElement(self: MoonTrack, name: string): Instance?
 end
 
 function MoonTrack.FindElementOfType(self: MoonTrack, typeName: string): Instance?
-	for i, element in ipairs(self._elements) do
+	for i, element in getElements(self) do
 		local target = element.Target
 
 		if target and target:IsA(typeName) then
@@ -598,7 +670,7 @@ function MoonTrack.Play(self: MoonTrack)
 		return
 	end
 
-	for target, element in self._targets do
+	for target, element in getTargets(self) do
 		if next(element.Locks) then
 			print(target, "is locked!")
 			continue

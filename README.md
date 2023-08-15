@@ -16,10 +16,9 @@ When syncing by default with rojo, the module can be found directly in the `Repl
 
 ## CreatePlayer
 ```lua
-Moonlite.CreatePlayer(save: StringValue) -> MoonTrack
+Moonlite.CreatePlayer(save: StringValue, root: Instance?) -> MoonTrack
 ```
 Loads the provided save file to be played back. The `save` is a StringValue normally stored in `game.ServerStorage.MoonAnimator2Saves`, but you'll need to store it elsewhere to play the sequence back on the client.
-
 
 # MoonTrack
 ```lua
@@ -105,6 +104,13 @@ MoonTrack:FindElementOfType(typeName: string): Instance?
 Returns the first element in this track which satisfies `element:IsA(typeName)`, or `nil` if no such element can be found.
 
 >**Warning:** The result of this function depends on the order of elements in the authored sequence. If there are multiple elements that satisfy `element:IsA(typeName)`, this may produce unexpected behavior.
+
+## ReplaceElementByPath
+```ts
+MoonTrack:ReplaceElementByPath(path: string, replacement: Instance)
+```
+
+Attempts to replace an element by its defined absolute path with a specific Instance.
 
 ## Looped
 ```ts
