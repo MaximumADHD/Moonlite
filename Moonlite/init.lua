@@ -242,6 +242,26 @@ local function readValue(value: Instance)
 	end
 end
 
+local function getPropValue(self: MoonTrack, inst: Instance?, prop: string): (boolean, any?)
+	if inst then
+		local binding = Specials.Get(self._scratch, inst, prop)
+
+		if binding then
+			local get = binding.Get
+
+			if get then
+				return pcall(get, inst)
+			else
+				return true, binding.Default
+			end
+		end
+	end
+
+	return pcall(function()
+		return (inst :: any)[prop]
+	end)
+end
+
 local function setPropValue(self: MoonTrack, inst: Instance?, prop: string, value: any, isDefault: boolean?): boolean
 	if inst then
 		local binding = Specials.Get(self._scratch, inst, prop)
@@ -888,7 +908,10 @@ function MoonTrack.Play(self: MoonTrack)
 		props[instance] = defaults
 
 		for name in frames[0] do
-			defaults[name] = instance[name]
+			local success, value = getPropValue(self, instance, name)
+			if success then
+				defaults[name] = value
+			end
 		end
 	end
 
