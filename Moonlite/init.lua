@@ -36,6 +36,7 @@ type MoonKeyframe = Types.MoonKeyframe
 type MoonProperty = Types.MoonProperty
 type MoonJointInfo = Types.MoonJointInfo
 type MoonKeyframePack = Types.MoonKeyframePack
+type MoonMarkers = Types.MoonMarkers
 type ActiveMoonTracks<T> = Types.ActiveMoonTracks<T>
 type GetSet<Inst, Value> = Types.GetSet<Inst, Value>
 
@@ -68,6 +69,15 @@ export type MoonTrack = typeof(setmetatable({} :: {
 	},
 
 	_elements: { Instance },
+
+	_markers: MoonMarkers,
+	_markerSignals: {
+		[string]: BindableEvent
+	},
+	_endMarkerSignals: {
+		[string]: BindableEvent
+	},
+
 	_buffer: {
 		[Instance]: {
 			[number]: {
@@ -375,7 +385,6 @@ local function compileItem(self: MoonTrack, item: MoonAnimItem, targets: MoonTar
 
 	local target = item.Override or resolveAnimPath(path, self._root)
 	local frame = self._save:FindFirstChild(tostring(id))
-	local rig = frame and frame:FindFirstChild("Rig")
 
 	if not (target and frame) then
 		return
@@ -383,6 +392,9 @@ local function compileItem(self: MoonTrack, item: MoonAnimItem, targets: MoonTar
 
 	assert(target)
 	assert(frame)
+
+	local rig = frame:FindFirstChild("Rig")
+	local markerTrack = frame:FindFirstChild("MarkerTrack")
 
 	if rig and itemType == "Rig" then
 		local joints = resolveJoints(target)
@@ -461,6 +473,49 @@ local function compileItem(self: MoonTrack, item: MoonAnimItem, targets: MoonTar
 			Props = props,
 			Target = target,
 		}
+	end
+
+	if markerTrack then
+		local markers = {}
+		self._markers[target] = markers
+
+		for _, marker in markerTrack:GetChildren() do
+			local frame = tonumber(marker.Name)
+			assert(frame)
+
+			local name = assert(marker:FindFirstChild("name")).Value
+			local width = assert(marker:FindFirstChild("width")).Value
+
+			local data = {}
+			local kfMarkers = marker:FindFirstChild("KFMarkers")
+
+			if kfMarkers then
+				for _, event in kfMarkers:GetChildren() do
+					data[event.Value] = assert(event:FindFirstChild("Val")).Value
+				end
+			end
+
+			if not markers[frame] then
+				markers[frame] = {
+					StartMarkers = {},
+					EndMarkers = {},
+				}
+			end
+
+			if width > 0 then
+				local endFrame = math.min(frame + width, self.Frames)
+				if not markers[endFrame] then
+					markers[endFrame] = {
+						StartMarkers = {},
+						EndMarkers = {},
+					}
+				end
+
+				markers[endFrame].EndMarkers[name] = data
+			end
+
+			markers[frame].StartMarkers[name] = data
+		end
 	end
 end
 
@@ -562,6 +617,7 @@ end
 local function compileRouting(self: MoonTrack)
 	table.clear(self._buffer)
 	table.clear(self._elements)
+	table.clear(self._markers)
 
 	local targets = {}
 
@@ -619,12 +675,32 @@ local function stepTrack(self: MoonTrack, dT: number)
 		end
 	end
 
+	for instance, markers in self._markers do
+		local frameMarkers = markers[currentFrame]
+		if not frameMarkers then
+			continue
+		end
+
+		for name, data in frameMarkers.StartMarkers do
+			if self._markerSignals[name] then
+				self._markerSignals[name]:Fire(instance, data)
+			end
+		end
+
+		for name, data in frameMarkers.EndMarkers do
+			if self._markerEndSignals[name] then
+				self._markerEndSignals[name]:Fire(instance, data)
+			end
+		end
+	end
+
 	self.TimePosition += dT
 	return false
 end
 
 function Moonlite.CreatePlayer(save: StringValue, root: Instance?): MoonTrack
 	local data: MoonAnimSave = HttpService:JSONDecode(save.Value)
+
 	local completed = Instance.new("BindableEvent")
 
 	local self = setmetatable({
@@ -637,8 +713,12 @@ function Moonlite.CreatePlayer(save: StringValue, root: Instance?): MoonTrack
 		_save = save,
 		_data = data,
 
-		_completed = completed,
 		_compiled = false,
+		_completed = completed,
+
+		_markers = {},
+		_markerSignals = {},
+		_markerEndSignals = {},
 
 		_locks = {},
 		_elements = {},
@@ -653,12 +733,45 @@ function Moonlite.CreatePlayer(save: StringValue, root: Instance?): MoonTrack
 	return self
 end
 
+function MoonTrack.Destroy(self: MoonTrack)
+	for _, signal in self._markerSignals do
+		signal:Destroy()
+	end
+
+	for _, signal in self._markerEndSignals do
+		signal:Destroy()
+	end
+
+	self._completed:Destroy()
+
+	table.clear(self._markerSignals)
+	table.clear(self._markerEndSignals)
+
+	setmetatable(self, nil)
+end
+
 function MoonTrack.IsPlaying(self: MoonTrack)
 	return PlayingTracks[self] ~= nil
 end
 
 function MoonTrack.GetTimeLength(self: MoonTrack)
 	return self.Frames / self.FrameRate
+end
+
+function MoonTrack.GetMarkerReachedSignal(self: MoonTrack, marker: string): RBXScriptSignal
+	if not self._markerSignals[marker] then
+		self._markerSignals[marker] = Instance.new("BindableEvent")
+	end
+
+	return self._markerSignals[marker].Event
+end
+
+function MoonTrack.GetMarkerEndedSignal(self: MoonTrack, marker: string): RBXScriptSignal
+	if not self._endMarkerSignals[marker] then
+		self._endMarkerSignals[marker] = Instance.new("BindableEvent")
+	end
+
+	return self._endMarkerSignals[marker].Event
 end
 
 function MoonTrack.GetSetting<T>(self: MoonTrack, name: string): T

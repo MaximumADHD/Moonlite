@@ -94,6 +94,24 @@ export type MoonAnimSave = {
 	Information: MoonAnimInfo,
 }
 
+export type MoonMarkers = {
+	[Instance]: {
+		[number]: {
+			StartMarkers: {
+				[string]: {
+					[string]: any,
+				},
+			},
+
+			EndMarkers: {
+				[string]: {
+					[string]: any,
+				},
+			},
+		},
+	},
+}
+
 export type ActiveMoonTracks<T> = {
 	[T]: {
 		[Instance]: {
