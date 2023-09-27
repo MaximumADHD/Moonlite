@@ -84,6 +84,7 @@ export type MoonAnimInfo = {
 	Created: number,
 	ExportedPriority: string,
 	Modified: number,
+	FPS: number?,
 	Length: number,
 	Looped: boolean,
 }
@@ -91,6 +92,14 @@ export type MoonAnimInfo = {
 export type MoonAnimSave = {
 	Items: { MoonAnimItem },
 	Information: MoonAnimInfo,
+}
+
+export type ActiveMoonTracks<T> = {
+	[T]: {
+		[Instance]: {
+			[string]: any,
+		},
+	},
 }
 
 export type Scratchpad = {

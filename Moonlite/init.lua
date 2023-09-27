@@ -36,12 +36,13 @@ type MoonKeyframe = Types.MoonKeyframe
 type MoonProperty = Types.MoonProperty
 type MoonJointInfo = Types.MoonJointInfo
 type MoonKeyframePack = Types.MoonKeyframePack
+type ActiveMoonTracks<T> = Types.ActiveMoonTracks<T>
 type GetSet<Inst, Value> = Types.GetSet<Inst, Value>
 
 local MoonTrack = {}
 MoonTrack.__index = MoonTrack
 
-local PlayingTracks = {}
+local PlayingTracks: ActiveMoonTracks<MoonTrack> = {}
 
 local CONSTANT_INTERPS = {
 	["Instance"] = true,
@@ -645,7 +646,7 @@ function Moonlite.CreatePlayer(save: StringValue, root: Instance?): MoonTrack
 
 		_scratch = {},
 		_root = root,
-	}, MoonTrack)
+	}, MoonTrack) :: MoonTrack
 
 	compileRouting(self)
 
@@ -672,7 +673,7 @@ function MoonTrack.GetElements(self: MoonTrack): { Instance }
 	return table.clone(self._elements)
 end
 
-function MoonTrack.LockElement(self: MoonTrack, inst: Instance?, lock: any?)
+function MoonTrack.LockElement(self: MoonTrack, inst: Instance, lock: any?)
 	if not self._locks[inst] then
 		self._locks[inst] = {}
 	end
@@ -684,7 +685,7 @@ function MoonTrack.LockElement(self: MoonTrack, inst: Instance?, lock: any?)
 	return true
 end
 
-function MoonTrack.UnlockElement(self: MoonTrack, inst: Instance?, lock: any?)
+function MoonTrack.UnlockElement(self: MoonTrack, inst: Instance, lock: any?)
 	local locks = self._locks[inst]
 
 	if locks then
@@ -698,7 +699,7 @@ function MoonTrack.UnlockElement(self: MoonTrack, inst: Instance?, lock: any?)
 	return true
 end
 
-function MoonTrack.IsElementLocked(self: MoonTrack, inst: Instance?): boolean
+function MoonTrack.IsElementLocked(self: MoonTrack, inst: Instance): boolean
 	return self._locks[inst] ~= nil
 end
 
