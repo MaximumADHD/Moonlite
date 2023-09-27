@@ -435,7 +435,7 @@ local function compileItem(self: MoonTrack, item: MoonAnimItem, targets: MoonTar
 
 					targets[joint] = {
 						Props = props,
-						Instance = joint,
+						Target = joint,
 					}
 				end
 			end
@@ -467,22 +467,22 @@ local function getInterpolator<T>(value: T): (start: T, goal: T, delta: number) 
 	local valueType = typeof(value)
 
 	if typeof(valueType) == "ColorSequence" then
-		return function(start, goal, t: number)
+		return function(start: T, goal: T, t: number)
 			local value = lerp(start.Keypoints[1].Value, goal.Keypoints[1].Value, t)
 			return ColorSequence.new(value)
 		end
 	elseif typeof(valueType) == "NumberSequence" then
-		return function(start, goal, t: number)
+		return function(start: T, goal: T, t: number)
 			local value = lerp(start.Keypoints[1].Value, goal.Keypoints[1].Value, t)
 			return NumberSequence.new(value)
 		end
 	elseif typeof(valueType) == "NumberRange" then
-		return function(start, goal, t: number)
+		return function(start: T, goal: T, t: number)
 			local value = lerp(start.Min, goal.Min, t)
 			return NumberRange.new(value)
 		end
 	elseif CONSTANT_INTERPS[typeof(valueType)] then
-		return function(start, goal, t: number)
+		return function(start: T, goal: T, t: number)
 			if t >= 1 then
 				return goal
 			else
