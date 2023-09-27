@@ -70,6 +70,10 @@ export type MoonElement = {
 	},
 }
 
+export type MoonTarget = {
+	[Instance]: MoonElement,
+}
+
 export type MoonJointInfo = {
 	Name: string,
 	Joint: Motor6D,
