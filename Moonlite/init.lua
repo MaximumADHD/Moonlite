@@ -26,8 +26,8 @@ end
 
 type Event = Types.Event
 type Scratchpad = Types.Scratchpad
-type MoonElement = Types.MoonElement
 type MoonAnimInfo = Types.MoonAnimInfo
+type MoonTarget = Types.MoonTarget
 type MoonAnimItem = Types.MoonAnimItem
 type MoonAnimPath = Types.MoonAnimPath
 type MoonAnimSave = Types.MoonAnimSave
@@ -41,6 +41,8 @@ type GetSet<Inst, Value> = Types.GetSet<Inst, Value>
 local MoonTrack = {}
 MoonTrack.__index = MoonTrack
 
+local PlayingTracks = {}
+
 local CONSTANT_INTERPS = {
 	["Instance"] = true,
 	["boolean"] = true,
@@ -51,17 +53,26 @@ local CONSTANT_INTERPS = {
 export type MoonTrack = typeof(setmetatable({} :: {
 	Completed: Event,
 	Looped: boolean,
+	Frames: number,
+	FrameRate: number,
+	TimePosition: number,
 
 	_tweens: { Tween },
 	_completed: BindableEvent,
-	_elements: { MoonElement },
 
-	_targets: {
-		[Instance]: MoonElement
+	_locks: {
+		[Instance]: {
+			[string]: boolean,
+		}
 	},
 
-	_playing: {
-		[MoonProperty]: true,
+	_elements: { Instance },
+	_buffer: {
+		[Instance]: {
+			[number]: {
+				[string]: any	
+			},
+		}
 	},
 
 	_root: Instance?,
@@ -220,26 +231,6 @@ local function readValue(value: Instance)
 	end
 end
 
-local function getPropValue(self: MoonTrack, inst: Instance?, prop: string): (boolean, any?)
-	if inst then
-		local binding = Specials.Get(self._scratch, inst, prop)
-
-		if binding then
-			local get = binding.Get
-
-			if get then
-				return pcall(get, inst)
-			else
-				return true, binding.Default
-			end
-		end
-	end
-
-	return pcall(function()
-		return (inst :: any)[prop]
-	end)
-end
-
 local function setPropValue(self: MoonTrack, inst: Instance?, prop: string, value: any, isDefault: boolean?): boolean
 	if inst then
 		local binding = Specials.Get(self._scratch, inst, prop)
@@ -371,7 +362,7 @@ local function unpackKeyframes(container: Instance, modifier: ((any) -> any)?)
 	return sequence
 end
 
-local function compileItem(self: MoonTrack, item: MoonAnimItem)
+local function compileItem(self: MoonTrack, item: MoonAnimItem, targets: MoonTarget)
 	local id = table.find(self._data.Items, item)
 
 	if not id then
@@ -442,14 +433,10 @@ local function compileItem(self: MoonTrack, item: MoonAnimItem)
 						},
 					}
 
-					local element = {
-						Locks = {},
+					targets[joint] = {
 						Props = props,
 						Instance = joint,
 					}
-
-					self._targets[joint] = element
-					table.insert(self._elements, element)
 				end
 			end
 		end
@@ -469,54 +456,182 @@ local function compileItem(self: MoonTrack, item: MoonAnimItem)
 			}
 		end
 
-		local element = {
-			Locks = {},
+		targets[target] = {
 			Props = props,
 			Target = target,
 		}
+	end
+end
 
-		self._targets[target] = element
-		table.insert(self._elements, element)
+local function getInterpolator<T>(value: T): (start: T, goal: T, delta: number) -> T
+	local valueType = typeof(value)
+
+	if typeof(valueType) == "ColorSequence" then
+		return function(start, goal, t: number)
+			local value = lerp(start.Keypoints[1].Value, goal.Keypoints[1].Value, t)
+			return ColorSequence.new(value)
+		end
+	elseif typeof(valueType) == "NumberSequence" then
+		return function(start, goal, t: number)
+			local value = lerp(start.Keypoints[1].Value, goal.Keypoints[1].Value, t)
+			return NumberSequence.new(value)
+		end
+	elseif typeof(valueType) == "NumberRange" then
+		return function(start, goal, t: number)
+			local value = lerp(start.Min, goal.Min, t)
+			return NumberRange.new(value)
+		end
+	elseif CONSTANT_INTERPS[typeof(valueType)] then
+		return function(start, goal, t: number)
+			if t >= 1 then
+				return goal
+			else
+				return start
+			end
+		end
+	end
+
+	return lerp
+end
+
+local function compileFrames(self: MoonTrack, targets: MoonTarget)
+	local buffer = self._buffer
+
+	for target, element in targets do
+		local frames = {}
+		buffer[target] = frames
+
+		for name, value in element.Props do
+			if not value.Sequence[1] then
+				continue
+			end
+
+			local interpolate = getInterpolator(value.Sequence[1])
+
+			local lastFrame = 0
+			local lastValue = value.Default
+			local lastEase
+
+			for _, v in value.Sequence do
+				if not frames[v.Time] then
+					frames[v.Time] = {}
+				end
+
+				frames[v.Time][name] = v.Value
+
+				local delta = v.Time - lastFrame
+				if delta <= 1 then
+					lastValue = v.Value
+					lastEase = v.Ease
+					lastFrame = v.Time
+					continue
+				end
+
+				local easeFunc = EaseFuncs.Get(lastEase)
+				for i = 0, delta do
+					local frameDelta = easeFunc(i / delta)
+					local frame = lastFrame + i
+					if not frames[frame] then
+						frames[frame] = {}
+					end
+
+					frames[frame][name] = interpolate(lastValue, v.Value, frameDelta)
+				end
+
+				lastEase = v.Ease
+				lastValue = v.Value
+				lastFrame = v.Time
+			end
+
+			if lastFrame < self.Frames then
+				local cache = frames[lastFrame][name]
+
+				for i = lastFrame, self.FrameRate do
+					if not frames[i] then
+						frames[i] = {}
+					end
+
+					frames[i][name] = cache
+				end
+			end
+		end
 	end
 end
 
 local function compileRouting(self: MoonTrack)
-	local elements = self._elements
-	table.clear(elements)
+	table.clear(self._buffer)
+	table.clear(self._elements)
 
-	local targets = self._targets
-	table.clear(targets)
+	local targets = {}
 
 	for id, item in self._data.Items do
-		compileItem(self, item)
+		compileItem(self, item, targets)
 	end
+
+	compileFrames(self, targets)
 
 	self._compiled = true
 end
 
-local function getElements(self: MoonTrack)
-	if not self._compiled then
-		compileRouting(self)
+local function restoreTrack(self: MoonTrack)
+	local defaults = PlayingTracks[self]
+	if not defaults then
+		return
 	end
 
-	return self._elements
+	for instance, props in defaults do
+		for name, value in props do
+			instance[name] = value
+		end
+	end
+
+	PlayingTracks[self] = nil
 end
 
-local function getTargets(self: MoonTrack)
-	if not self._compiled then
-		compileRouting(self)
+local function stepTrack(self: MoonTrack, dT: number)
+	dT = math.min(dT, 1 / self.FrameRate)
+
+	local currentFrame = math.floor(self.TimePosition * self.FrameRate)
+	if currentFrame > self.Frames then
+		if self.Looped then
+			currentFrame = 0
+			self.TimePosition = 0
+		else
+			self._completed:Fire(Enum.PlaybackState.Completed)
+
+			return true
+		end
 	end
 
-	return self._targets
+	for instance, frames in self._buffer do
+		if self._locks[instance] ~= nil then
+			continue
+		end
+
+		local props = frames[currentFrame]
+		if not props then
+			continue
+		end
+
+		for name, value in props do
+			setPropValue(self, instance, name, value)
+		end
+	end
+
+	self.TimePosition += dT
+	return false
 end
 
 function Moonlite.CreatePlayer(save: StringValue, root: Instance?): MoonTrack
 	local data: MoonAnimSave = HttpService:JSONDecode(save.Value)
 	local completed = Instance.new("BindableEvent")
 
-	return setmetatable({
-		Looped = data.Information.Looped,
+	local self = setmetatable({
 		Completed = completed.Event,
+		Looped = data.Information.Looped,
+		Frames = data.Information.Length,
+		FrameRate = data.Information.FPS or 60,
+		TimePosition = 0,
 
 		_save = save,
 		_data = data,
@@ -524,18 +639,25 @@ function Moonlite.CreatePlayer(save: StringValue, root: Instance?): MoonTrack
 		_completed = completed,
 		_compiled = false,
 
+		_locks = {},
 		_elements = {},
-		_targets = {},
+		_buffer = {},
 
-		_playing = {},
 		_scratch = {},
-		_tweens = {},
 		_root = root,
 	}, MoonTrack)
+
+	compileRouting(self)
+
+	return self
 end
 
 function MoonTrack.IsPlaying(self: MoonTrack)
-	return next(self._playing) ~= nil
+	return PlayingTracks[self] ~= nil
+end
+
+function MoonTrack.GetTimeLength(self: MoonTrack)
+	return self.Frames / self.FrameRate
 end
 
 function MoonTrack.GetSetting<T>(self: MoonTrack, name: string): T
@@ -547,48 +669,37 @@ function MoonTrack.SetSetting<T>(self: MoonTrack, name: string, value: T)
 end
 
 function MoonTrack.GetElements(self: MoonTrack): { Instance }
-	local elements = {}
-
-	for target in getTargets(self) do
-		table.insert(elements, target)
-	end
-
-	return elements
+	return table.clone(self._elements)
 end
 
 function MoonTrack.LockElement(self: MoonTrack, inst: Instance?, lock: any?)
-	local targets = getTargets(self)
-	local element = inst and targets[inst]
-
-	if element then
-		element.Locks[lock or "Default"] = true
-		return true
+	if not self._locks[inst] then
+		self._locks[inst] = {}
 	end
 
-	return false
+	if lock then
+		self._locks[inst][lock or "Default"] = true
+	end
+
+	return true
 end
 
 function MoonTrack.UnlockElement(self: MoonTrack, inst: Instance?, lock: any?)
-	local targets = getTargets(self)
-	local element = inst and targets[inst]
+	local locks = self._locks[inst]
 
-	if element then
-		element.Locks[lock or "Default"] = nil
-		return true
+	if locks then
+		locks[lock or "Default"] = nil
+
+		if not next(locks) then
+			self._locks[inst] = nil
+		end
 	end
 
-	return false
+	return true
 end
 
 function MoonTrack.IsElementLocked(self: MoonTrack, inst: Instance?): boolean
-	local targets = getTargets(self)
-	local element = inst and targets[inst]
-
-	if element and next(element.Locks) then
-		return true
-	end
-
-	return false
+	return self._locks[inst] ~= nil
 end
 
 function MoonTrack.ReplaceElementByPath(self: MoonTrack, targetPath: string, replacement: Instance)
@@ -601,10 +712,7 @@ function MoonTrack.ReplaceElementByPath(self: MoonTrack, targetPath: string, rep
 
 			if itemType == "Rig" or replacement:IsA(path.ItemType) then
 				item.Override = replacement
-
-				if self._compiled then
-					compileItem(self, item)
-				end
+				compileRouting(self)
 
 				return true
 			end
@@ -615,9 +723,7 @@ function MoonTrack.ReplaceElementByPath(self: MoonTrack, targetPath: string, rep
 end
 
 function MoonTrack.FindElement(self: MoonTrack, name: string): Instance?
-	for i, element in getElements(self) do
-		local target = element.Target
-
+	for i, target in self._elements do
 		if target and target.Name == name then
 			return target
 		end
@@ -627,9 +733,7 @@ function MoonTrack.FindElement(self: MoonTrack, name: string): Instance?
 end
 
 function MoonTrack.FindElementOfType(self: MoonTrack, typeName: string): Instance?
-	for i, element in getElements(self) do
-		local target = element.Target
-
+	for _, target in self._elements do
 		if target and target:IsA(typeName) then
 			return target
 		end
@@ -639,191 +743,51 @@ function MoonTrack.FindElementOfType(self: MoonTrack, typeName: string): Instanc
 end
 
 function MoonTrack.Stop(self: MoonTrack)
-	while #self._tweens > 0 do
-		local tween = table.remove(self._tweens)
-
-		if tween then
-			tween:Cancel()
-			tween:Destroy()
-		end
-	end
-
-	table.clear(self._playing)
+	self.TimePosition = 0
+	task.spawn(restoreTrack, self)
+	self._completed:Fire(Enum.PlaybackState.Cancelled)
 end
 
 function MoonTrack.Reset(self: MoonTrack)
-	if self:IsPlaying() then
-		return false
-	end
-
-	for inst, element in self._targets do
-		for name, data in element.Props do
-			setPropValue(self, inst, name, data.Default, true)
-		end
-	end
+	self.TimePosition = 0
+	stepTrack(self, 0)
 
 	return true
 end
 
 function MoonTrack.Play(self: MoonTrack)
-	if self:IsPlaying() then
+	if PlayingTracks[self] then
 		return
 	end
 
-	for target, element in getTargets(self) do
-		if next(element.Locks) then
-			print(target, "is locked!")
+	if self.TimePosition >= self:GetTimeLength() then
+		self.TimePosition = 0
+	end
+
+	local props = {}
+	for instance, frames in self._buffer do
+		if not frames[0] then
 			continue
 		end
 
-		for propName, prop in element.Props do
-			if not setPropValue(self, target, propName, prop.Default, true) then
-				continue
-			end
+		local defaults = {}
+		props[instance] = defaults
 
-			local lastEase: MoonEaseInfo?
-			local lastTween: Tween?
-			local lastTime: number?
-
-			for i, kf in prop.Sequence do
-				local timeStamp = kf.Time / 60
-				local goal = kf.Value
-				local ease = kf.Ease
-
-				-- stylua: ignore
-				local tweenTime = if lastTime
-					then timeStamp - lastTime
-					else timeStamp
-
-				local interp = Instance.new("NumberValue")
-				local easeFunc = EaseFuncs.Get(lastEase)
-
-				local handler: ((t: number) -> any)?
-				local setup: () -> ()?
-				local start: any
-
-				if typeof(goal) == "ColorSequence" then
-					setup = function()
-						start = start.Keypoints[1].Value
-						goal = goal.Keypoints[1].Value
-					end
-
-					handler = function(t: number)
-						local value = lerp(start, goal, t)
-						return ColorSequence.new(value)
-					end
-				elseif typeof(goal) == "NumberSequence" then
-					setup = function()
-						start = start.Keypoints[1].Value
-						goal = goal.Keypoints[1].Value
-					end
-
-					handler = function(t: number)
-						local value = lerp(start, goal, t)
-						return NumberSequence.new(value)
-					end
-				elseif typeof(goal) == "NumberRange" then
-					setup = function()
-						start = start.Min
-						goal = goal.Min
-					end
-
-					handler = function(t: number)
-						local value = lerp(start, goal, t)
-						return NumberRange.new(value)
-					end
-				elseif CONSTANT_INTERPS[typeof(goal)] then
-					handler = function(t: number)
-						if t >= 1 then
-							return goal
-						else
-							return start
-						end
-					end
-				end
-
-				-- stylua: ignore
-				local tweenInfo = TweenInfo.new(
-					tweenTime,
-					Enum.EasingStyle.Linear
-				)
-
-				local tween = TweenService:Create(interp, tweenInfo, {
-					Value = 1,
-				})
-
-				local function stepInterp(raw: number)
-					local t = easeFunc(raw)
-
-					-- stylua: ignore
-					local value = if not handler
-						then lerp(start, goal, t)
-						else handler(t)
-
-					setPropValue(self, target, propName, value)
-				end
-
-				local function dispatch()
-					local gotStart, setStart = getPropValue(self, target, propName)
-
-					if gotStart then
-						start = setStart
-
-						if setup then
-							task.spawn(setup)
-						end
-
-						interp.Changed:Connect(stepInterp)
-						task.spawn(stepInterp, 0)
-						tween:Play()
-
-						-- For some reason the playback chain breaks when this is excluded...
-						-- TODO: Switch to a proper timeline system instead of using tween chains.
-
-						tween.Completed:Connect(function(state)
-							if state == Enum.PlaybackState.Completed then
-								interp.Value = 1
-							end
-						end)
-					end
-				end
-
-				if lastTween then
-					lastTween.Completed:Connect(function(state)
-						if state == Enum.PlaybackState.Completed then
-							dispatch()
-						end
-					end)
-				else
-					task.spawn(dispatch)
-				end
-
-				lastTime = timeStamp
-				lastTween = tween
-				lastEase = ease
-			end
-
-			if lastTween then
-				self._playing[prop] = true
-
-				lastTween.Completed:Connect(function(state)
-					if state ~= Enum.PlaybackState.Completed then
-						return
-					end
-
-					self._playing[prop] = nil
-
-					if not next(self._playing) then
-						self._completed:Fire()
-
-						if self.Looped then
-							task.spawn(self.Play, self)
-						end
-					end
-				end)
-			end
+		for name in frames[0] do
+			defaults[name] = instance[name]
 		end
 	end
+
+	PlayingTracks[self] = props
+	self._completed:Fire(Enum.PlaybackState.Playing)
 end
+
+RunService:BindToRenderStep("__UPDATE_MOONLITE_TRACKS", Enum.RenderPriority.Camera.Value + 1, function(dT: number)
+	for track in PlayingTracks do
+		if stepTrack(track, dT) then
+			restoreTrack(track)
+		end
+	end
+end)
 
 return Moonlite
