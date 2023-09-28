@@ -34,9 +34,12 @@ type MoonAnimSave = Types.MoonAnimSave
 type MoonEaseInfo = Types.MoonEaseInfo
 type MoonKeyframe = Types.MoonKeyframe
 type MoonProperty = Types.MoonProperty
+type MoonElementLocks = Types.MoonElementLocks
 type MoonJointInfo = Types.MoonJointInfo
 type MoonKeyframePack = Types.MoonKeyframePack
 type MoonMarkers = Types.MoonMarkers
+type MoonMarkerSignals = Types.MoonMarkerSignals
+type MoonFrameBuffer = Types.MoonFrameBuffer
 type ActiveMoonTracks<T> = Types.ActiveMoonTracks<T>
 type GetSet<Inst, Value> = Types.GetSet<Inst, Value>
 
@@ -59,32 +62,15 @@ export type MoonTrack = typeof(setmetatable({} :: {
 	FrameRate: number,
 	TimePosition: number,
 
-	_tweens: { Tween },
 	_completed: BindableEvent,
 
-	_locks: {
-		[Instance]: {
-			[string]: boolean,
-		}
-	},
-
+	_locks: MoonElementLocks,
+	_buffer: MoonFrameBuffer,
 	_elements: { Instance },
 
 	_markers: MoonMarkers,
-	_markerSignals: {
-		[string]: BindableEvent
-	},
-	_endMarkerSignals: {
-		[string]: BindableEvent
-	},
-
-	_buffer: {
-		[Instance]: {
-			[number]: {
-				[string]: any	
-			},
-		}
-	},
+	_markerSignals: MoonMarkerSignals,
+	_endMarkerSignals: MoonMarkerSignals,
 
 	_root: Instance?,
 	_save: StringValue,

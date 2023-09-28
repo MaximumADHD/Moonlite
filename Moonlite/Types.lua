@@ -66,6 +66,22 @@ export type MoonElement = {
 	},
 }
 
+export type MoonProperties = {
+	[string]: any,
+}
+
+export type MoonFrameBuffer = {
+	[Instance]: {
+		[number]: MoonProperties,
+	},
+}
+
+export type MoonElementLocks = {
+	[Instance]: {
+		[string]: boolean,
+	},
+}
+
 export type MoonTarget = {
 	[Instance]: MoonElement,
 }
@@ -94,29 +110,30 @@ export type MoonAnimSave = {
 	Information: MoonAnimInfo,
 }
 
-export type MoonMarkers = {
-	[Instance]: {
-		[number]: {
-			StartMarkers: {
-				[string]: {
-					[string]: any,
-				},
-			},
-
-			EndMarkers: {
-				[string]: {
-					[string]: any,
-				},
-			},
-		},
+export type MoonMarkerData = {
+	StartMarkers: {
+		[string]: MoonProperties,
 	},
+	EndMarkers: {
+		[string]: MoonProperties,
+	},
+}
+
+export type MoonFrameMarkers = {
+	[number]: MoonMarkerData,
+}
+
+export type MoonMarkerSignals = {
+	[string]: BindableEvent,
+}
+
+export type MoonMarkers = {
+	[Instance]: MoonFrameMarkers,
 }
 
 export type ActiveMoonTracks<T> = {
 	[T]: {
-		[Instance]: {
-			[string]: any,
-		},
+		[Instance]: MoonProperties,
 	},
 }
 
