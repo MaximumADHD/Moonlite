@@ -61,13 +61,29 @@ export type MoonProperty = {
 export type MoonElement = {
 	Target: Instance?,
 
-	Locks: {
-		[any]: true,
-	},
-
 	Props: {
 		[string]: MoonProperty,
 	},
+}
+
+export type MoonProperties = {
+	[string]: any,
+}
+
+export type MoonFrameBuffer = {
+	[Instance]: {
+		[number]: MoonProperties,
+	},
+}
+
+export type MoonElementLocks = {
+	[Instance]: {
+		[string]: boolean,
+	},
+}
+
+export type MoonTarget = {
+	[Instance]: MoonElement,
 }
 
 export type MoonJointInfo = {
@@ -84,6 +100,7 @@ export type MoonAnimInfo = {
 	Created: number,
 	ExportedPriority: string,
 	Modified: number,
+	FPS: number?,
 	Length: number,
 	Looped: boolean,
 }
@@ -91,6 +108,33 @@ export type MoonAnimInfo = {
 export type MoonAnimSave = {
 	Items: { MoonAnimItem },
 	Information: MoonAnimInfo,
+}
+
+export type MoonMarkerData = {
+	StartMarkers: {
+		[string]: MoonProperties,
+	},
+	EndMarkers: {
+		[string]: MoonProperties,
+	},
+}
+
+export type MoonFrameMarkers = {
+	[number]: MoonMarkerData,
+}
+
+export type MoonMarkerSignals = {
+	[string]: BindableEvent,
+}
+
+export type MoonMarkers = {
+	[Instance]: MoonFrameMarkers,
+}
+
+export type ActiveMoonTracks<T> = {
+	[T]: {
+		[Instance]: MoonProperties,
+	},
 }
 
 export type Scratchpad = {
