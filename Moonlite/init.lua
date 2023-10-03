@@ -586,9 +586,8 @@ local function compileFrames(self: MoonTrack, targets: MoonTarget)
 			end
 
 			local interpolate = getInterpolator(value.Sequence[1])
-
-			local lastFrame = 0
 			local lastValue = value.Default
+			local lastFrame = 0
 			local lastEase
 
 			for _, v in value.Sequence do
@@ -596,9 +595,9 @@ local function compileFrames(self: MoonTrack, targets: MoonTarget)
 					frames[v.Time] = {}
 				end
 
+				local delta = v.Time - lastFrame
 				frames[v.Time][name] = v.Value
 
-				local delta = v.Time - lastFrame
 				if delta <= 1 then
 					lastValue = v.Value
 					lastEase = v.Ease
@@ -607,6 +606,7 @@ local function compileFrames(self: MoonTrack, targets: MoonTarget)
 				end
 
 				local easeFunc = EaseFuncs.Get(lastEase)
+
 				for i = 0, delta do
 					local frameDelta = easeFunc(i / delta)
 					local frame = lastFrame + i
@@ -649,12 +649,12 @@ local function compileRouting(self: MoonTrack)
 	end
 
 	compileFrames(self, targets)
-
 	self._compiled = true
 end
 
 local function restoreTrack(self: MoonTrack)
 	local defaults = PlayingTracks[self]
+
 	if not defaults then
 		return
 	end
@@ -723,7 +723,6 @@ end
 
 function Moonlite.CreatePlayer(save: StringValue, root: Instance?): MoonTrack
 	local data: MoonAnimSave = HttpService:JSONDecode(save.Value)
-
 	local completed = Instance.new("BindableEvent")
 
 	local self = setmetatable({
@@ -793,11 +792,11 @@ function MoonTrack.GetMarkerEndedSignal(self: MoonTrack, marker: string): RBXScr
 	return self._endMarkerSignals[marker].Event
 end
 
-function MoonTrack.GetSetting<T>(self: MoonTrack, name: string): T
+function MoonTrack.GetSetting(self: MoonTrack, name: string)
 	return self._scratch[name]
 end
 
-function MoonTrack.SetSetting<T>(self: MoonTrack, name: string, value: T)
+function MoonTrack.SetSetting(self: MoonTrack, name: string, value: any)
 	self._scratch[name] = value
 end
 
