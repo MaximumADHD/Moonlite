@@ -512,14 +512,16 @@ local function compileItem(self: MoonTrack, item: MoonAnimItem, targets: MoonTar
 				end
 			end
 
-			local startMarker = (function()
-				markers[startFrame] = markers[startFrame] or {
+			local startMarker = markers[startFrame]
+
+			if not startMarker then
+				startMarker = {
 					StartMarkers = {},
 					EndMarkers = {},
 				}
 
-				return markers[startFrame]
-			end)()
+				markers[startFrame] = startMarker
+			end
 
 			if width > 0 then
 				local endFrame = math.min(startFrame + width, self.Frames)
