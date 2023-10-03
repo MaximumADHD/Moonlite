@@ -60,7 +60,6 @@ export type MoonTrack = typeof(setmetatable({} :: {
 	TimePosition: number,
 
 	_completed: BindableEvent,
-
 	_locks: MoonElementLocks,
 	_buffer: MoonFrameBuffer,
 	_elements: { Instance },
