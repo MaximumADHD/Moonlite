@@ -568,7 +568,7 @@ local function getInterpolator(value: any): (start: any, goal: any, delta: numbe
 		end
 	end
 
-	return lerp :: any
+	return lerp
 end
 
 local function compileFrames(self: MoonTrack, targets: MoonTarget)
