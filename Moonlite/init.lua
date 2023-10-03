@@ -18,7 +18,6 @@ local EaseFuncs = require(script.EaseFuncs)
 
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
-local TweenService = game:GetService("TweenService")
 
 if RunService:IsServer() then
 	warn("Moonlite should NOT be used on the server! Rig transforms will not be replicated.")
@@ -26,27 +25,25 @@ end
 
 type Event = Types.Event
 type Scratchpad = Types.Scratchpad
-type MoonAnimInfo = Types.MoonAnimInfo
 type MoonTarget = Types.MoonTarget
+type MoonMarkers = Types.MoonMarkers
+type MoonAnimInfo = Types.MoonAnimInfo
 type MoonAnimItem = Types.MoonAnimItem
 type MoonAnimPath = Types.MoonAnimPath
 type MoonAnimSave = Types.MoonAnimSave
 type MoonEaseInfo = Types.MoonEaseInfo
 type MoonKeyframe = Types.MoonKeyframe
 type MoonProperty = Types.MoonProperty
-type MoonElementLocks = Types.MoonElementLocks
 type MoonJointInfo = Types.MoonJointInfo
-type MoonKeyframePack = Types.MoonKeyframePack
-type MoonMarkers = Types.MoonMarkers
-type MoonMarkerSignals = Types.MoonMarkerSignals
+type MoonProperties = Types.MoonProperties
 type MoonFrameBuffer = Types.MoonFrameBuffer
-type ActiveMoonTracks<T> = Types.ActiveMoonTracks<T>
+type MoonElementLocks = Types.MoonElementLocks
+type MoonKeyframePack = Types.MoonKeyframePack
+type MoonMarkerSignals = Types.MoonMarkerSignals
 type GetSet<Inst, Value> = Types.GetSet<Inst, Value>
 
 local MoonTrack = {}
 MoonTrack.__index = MoonTrack
-
-local PlayingTracks: ActiveMoonTracks<MoonTrack> = {}
 
 local CONSTANT_INTERPS = {
 	["Instance"] = true,
@@ -80,8 +77,15 @@ export type MoonTrack = typeof(setmetatable({} :: {
 	_compiled: boolean,
 }, MoonTrack))
 
-local function lerp<T>(a: T, b: T, t: number): any
+local PlayingTracks = {} :: {
+	[MoonTrack]: {
+		[Instance]: MoonProperties,
+	},
+}
+
+local function lerp(a: any, b: any, t: number): any
 	if type(a) == "number" then
+		assert(type(b) == "number")
 		return a + ((b - a) * t)
 	else
 		return (a :: any):Lerp(b, t)
@@ -379,6 +383,12 @@ local function unpackKeyframes(container: Instance, modifier: ((any) -> any)?)
 	return sequence
 end
 
+local function getValue<T>(target: Instance, name: string): T
+	local child = target:FindFirstChild(name)
+	assert(child and child:IsA("ValueBase"))
+	return (child :: any).Value
+end
+
 local function compileItem(self: MoonTrack, item: MoonAnimItem, targets: MoonTarget)
 	local id = table.find(self._data.Items, item)
 
@@ -486,65 +496,70 @@ local function compileItem(self: MoonTrack, item: MoonAnimItem, targets: MoonTar
 		self._markers[target] = markers
 
 		for _, marker in markerTrack:GetChildren() do
-			local frame = tonumber(marker.Name)
-			assert(frame)
-
-			local name = assert(marker:FindFirstChild("name")).Value
-			local width = assert(marker:FindFirstChild("width")).Value
+			local startFrame = assert(tonumber(marker.Name))
+			local width = getValue(marker, "width")
+			local name = getValue(marker, "name")
 
 			local data = {}
 			local kfMarkers = marker:FindFirstChild("KFMarkers")
 
 			if kfMarkers then
 				for _, event in kfMarkers:GetChildren() do
-					data[event.Value] = assert(event:FindFirstChild("Val")).Value
+					if event:IsA("ValueBase") then
+						local key = (event :: any).Value
+						data[key] = getValue(event, "Val")
+					end
 				end
 			end
 
-			if not markers[frame] then
-				markers[frame] = {
+			local startMarker = (function()
+				markers[startFrame] = markers[startFrame] or {
 					StartMarkers = {},
 					EndMarkers = {},
 				}
-			end
+
+				return markers[startFrame]
+			end)()
 
 			if width > 0 then
-				local endFrame = math.min(frame + width, self.Frames)
-				if not markers[endFrame] then
-					markers[endFrame] = {
+				local endFrame = math.min(startFrame + width, self.Frames)
+				local endMarker = markers[endFrame]
+
+				if not endMarker then
+					endMarker = {
 						StartMarkers = {},
 						EndMarkers = {},
 					}
+
+					markers[endFrame] = endMarker
 				end
 
-				markers[endFrame].EndMarkers[name] = data
+				endMarker.EndMarkers[name] = data
 			end
 
-			markers[frame].StartMarkers[name] = data
+			startMarker.StartMarkers[name] = data
 		end
 	end
 end
 
-local function getInterpolator<T>(value: T): (start: T, goal: T, delta: number) -> T
-	local valueType = typeof(value)
-
-	if typeof(valueType) == "ColorSequence" then
-		return function(start: T, goal: T, t: number)
+local function getInterpolator(value: any): (start: any, goal: any, delta: number) -> any
+	if typeof(value) == "ColorSequence" then
+		return function(start: ColorSequence, goal: ColorSequence, t: number)
 			local value = lerp(start.Keypoints[1].Value, goal.Keypoints[1].Value, t)
 			return ColorSequence.new(value)
 		end
-	elseif typeof(valueType) == "NumberSequence" then
-		return function(start: T, goal: T, t: number)
+	elseif typeof(value) == "NumberSequence" then
+		return function(start: NumberSequence, goal: NumberSequence, t: number)
 			local value = lerp(start.Keypoints[1].Value, goal.Keypoints[1].Value, t)
 			return NumberSequence.new(value)
 		end
-	elseif typeof(valueType) == "NumberRange" then
-		return function(start: T, goal: T, t: number)
+	elseif typeof(value) == "NumberRange" then
+		return function(start: NumberRange, goal: NumberRange, t: number)
 			local value = lerp(start.Min, goal.Min, t)
 			return NumberRange.new(value)
 		end
-	elseif CONSTANT_INTERPS[typeof(valueType)] then
-		return function(start: T, goal: T, t: number)
+	elseif CONSTANT_INTERPS[typeof(value)] then
+		return function(start: any, goal: any, t: number)
 			if t >= 1 then
 				return goal
 			else
@@ -553,7 +568,7 @@ local function getInterpolator<T>(value: T): (start: T, goal: T, delta: number) 
 		end
 	end
 
-	return lerp
+	return lerp :: any
 end
 
 local function compileFrames(self: MoonTrack, targets: MoonTarget)
@@ -644,24 +659,23 @@ local function restoreTrack(self: MoonTrack)
 
 	for instance, props in defaults do
 		for name, value in props do
-			instance[name] = value
+			(instance :: any)[name] = value
 		end
 	end
 
 	PlayingTracks[self] = nil
 end
 
-local function stepTrack(self: MoonTrack, dT: number)
-	dT = math.min(dT, 1 / self.FrameRate)
-
+local function stepTrack(self: MoonTrack, dt: number)
 	local currentFrame = math.floor(self.TimePosition * self.FrameRate)
+	dt = math.min(dt, 1 / self.FrameRate)
+
 	if currentFrame > self.Frames then
 		if self.Looped then
 			currentFrame = 0
 			self.TimePosition = 0
 		else
 			self._completed:Fire(Enum.PlaybackState.Completed)
-
 			return true
 		end
 	end
@@ -672,6 +686,7 @@ local function stepTrack(self: MoonTrack, dT: number)
 		end
 
 		local props = frames[currentFrame]
+
 		if not props then
 			continue
 		end
@@ -694,13 +709,13 @@ local function stepTrack(self: MoonTrack, dT: number)
 		end
 
 		for name, data in frameMarkers.EndMarkers do
-			if self._markerEndSignals[name] then
-				self._markerEndSignals[name]:Fire(instance, data)
+			if self._endMarkerSignals[name] then
+				self._endMarkerSignals[name]:Fire(instance, data)
 			end
 		end
 	end
 
-	self.TimePosition += dT
+	self.TimePosition += dt
 	return false
 end
 
@@ -724,7 +739,7 @@ function Moonlite.CreatePlayer(save: StringValue, root: Instance?): MoonTrack
 
 		_markers = {},
 		_markerSignals = {},
-		_markerEndSignals = {},
+		_endMarkerSignals = {},
 
 		_locks = {},
 		_elements = {},
@@ -732,10 +747,9 @@ function Moonlite.CreatePlayer(save: StringValue, root: Instance?): MoonTrack
 
 		_scratch = {},
 		_root = root,
-	}, MoonTrack) :: MoonTrack
+	}, MoonTrack)
 
 	compileRouting(self)
-
 	return self
 end
 
@@ -744,16 +758,13 @@ function MoonTrack.Destroy(self: MoonTrack)
 		signal:Destroy()
 	end
 
-	for _, signal in self._markerEndSignals do
+	for _, signal in self._endMarkerSignals do
 		signal:Destroy()
 	end
 
 	self._completed:Destroy()
-
 	table.clear(self._markerSignals)
-	table.clear(self._markerEndSignals)
-
-	setmetatable(self, nil)
+	table.clear(self._endMarkerSignals)
 end
 
 function MoonTrack.IsPlaying(self: MoonTrack)
