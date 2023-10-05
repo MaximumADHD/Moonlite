@@ -131,12 +131,6 @@ export type MoonMarkers = {
 	[Instance]: MoonFrameMarkers,
 }
 
-export type ActiveMoonTracks<T> = {
-	[T]: {
-		[Instance]: MoonProperties,
-	},
-}
-
 export type Scratchpad = {
 	[string]: any,
 }
