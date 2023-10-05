@@ -382,7 +382,7 @@ local function unpackKeyframes(container: Instance, modifier: ((any) -> any)?)
 	return sequence
 end
 
-local function getValue<T>(target: Instance, name: string): T
+local function readValueBase<T>(target: Instance, name: string): any
 	local child = target:FindFirstChild(name)
 	assert(child and child:IsA("ValueBase"))
 	return (child :: any).Value
@@ -496,8 +496,8 @@ local function compileItem(self: MoonTrack, item: MoonAnimItem, targets: MoonTar
 
 		for _, marker in markerTrack:GetChildren() do
 			local startFrame = assert(tonumber(marker.Name))
-			local width = getValue(marker, "width")
-			local name = getValue(marker, "name")
+			local width = readValueBase(marker, "width")
+			local name = readValueBase(marker, "name")
 
 			local data = {}
 			local kfMarkers = marker:FindFirstChild("KFMarkers")
@@ -506,7 +506,7 @@ local function compileItem(self: MoonTrack, item: MoonAnimItem, targets: MoonTar
 				for _, event in kfMarkers:GetChildren() do
 					if event:IsA("ValueBase") then
 						local key = (event :: any).Value
-						data[key] = getValue(event, "Val")
+						data[key] = readValueBase(event, "Val")
 					end
 				end
 			end
