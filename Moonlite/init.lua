@@ -472,6 +472,10 @@ local function compileItem(self: MoonTrack, item: MoonAnimItem, targets: MoonTar
 		local props = {}
 
 		for i, prop in frame:GetChildren() do
+			if not prop:IsA("Folder") or prop == markerTrack then
+				continue
+			end
+
 			local default: any = prop:FindFirstChild("default")
 
 			if default then
@@ -495,6 +499,10 @@ local function compileItem(self: MoonTrack, item: MoonAnimItem, targets: MoonTar
 		self._markers[target] = markers
 
 		for _, marker in markerTrack:GetChildren() do
+			if not marker:FindFirstChild("name") then
+				continue
+			end
+
 			local startFrame = assert(tonumber(marker.Name))
 			local width = readValueBase(marker, "width")
 			local name = readValueBase(marker, "name")
@@ -584,10 +592,11 @@ local function compileFrames(self: MoonTrack, targets: MoonTarget)
 				continue
 			end
 
-			local interpolate = getInterpolator(value.Sequence[1])
-			local lastValue = value.Default
-			local lastFrame = 0
 			local lastEase
+			local lastFrame = 0
+			local lastValue = value.Default
+
+			local interpolate = getInterpolator(value.Sequence[1].Value)
 
 			for _, v in value.Sequence do
 				if not frames[v.Time] then
