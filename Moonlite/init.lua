@@ -499,6 +499,10 @@ local function compileItem(self: MoonTrack, item: MoonAnimItem, targets: MoonTar
 		self._markers[target] = markers
 
 		for _, marker in markerTrack:GetChildren() do
+			if not marker:FindFirstChild("name") then
+				continue
+			end
+
 			local startFrame = assert(tonumber(marker.Name))
 			local width = readValueBase(marker, "width")
 			local name = readValueBase(marker, "name")
