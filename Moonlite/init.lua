@@ -592,10 +592,11 @@ local function compileFrames(self: MoonTrack, targets: MoonTarget)
 				continue
 			end
 
-			local interpolate = getInterpolator(value.Sequence[1])
-			local lastValue = value.Default
-			local lastFrame = 0
 			local lastEase
+			local lastFrame = 0
+			local lastValue = value.Default
+
+			local interpolate = getInterpolator(value.Sequence[1].Value)
 
 			for _, v in value.Sequence do
 				if not frames[v.Time] then
