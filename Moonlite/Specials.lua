@@ -34,6 +34,39 @@ local Specials = {} :: {
 	[string]: BindSet,
 }
 
+local StaticProperties = {
+	Camera = {
+		AttachToPart = true,
+		LookAtPart = true,
+	},
+
+	Humanoid = {
+		AddAccessory = true,
+		ChangeState = true,
+		EquipTool = true,
+		MoveTo = true,
+		Move = true,
+		PlayEmote = true,
+		RemoveAccessories = true,
+		TakeDamage = true,
+		UnequipTools = true,
+	},
+
+	ParticleEmitter = {
+		Emit = true,
+		Clear = true,
+	},
+
+	Sound = {
+		PlayOnce = true,
+		SetTime = true,
+		Play = true,
+		Resume = true,
+		Pause = true,
+		Stop = true,
+	},
+}
+
 local function getValue<T>(inst: Instance, name: string, default: T)
 	return inst:GetAttribute(`__moonlite_{name}`) or default
 end
@@ -472,6 +505,12 @@ Specials.Sound = {
 -- Module Export
 -------------------------------------------------------------------------------------------------------
 
+local staticBinds = {} :: {
+	[string]: {
+		[string]: boolean,
+	},
+}
+
 local classBinds = {} :: {
 	[string]: BindSet,
 }
@@ -543,8 +582,29 @@ local function get(work: Scratchpad, inst: Instance, prop: string): GetSet<any, 
 	return props[prop]
 end
 
+local function static(inst: Instance, prop: string): boolean
+	local className = inst.ClassName
+
+	if not staticBinds[className] then
+		local binds = {}
+
+		for class, propSet in StaticProperties do
+			if inst:IsA(class) then
+				for name, getSet in propSet do
+					binds[name] = getSet
+				end
+			end
+		end
+
+		staticBinds[className] = binds
+	end
+
+	return staticBinds[className][prop] == true
+end
+
 return {
 	Get = get,
+	Static = static,
 	Index = Specials,
 }
 
