@@ -472,6 +472,10 @@ local function compileItem(self: MoonTrack, item: MoonAnimItem, targets: MoonTar
 		local props = {}
 
 		for i, prop in frame:GetChildren() do
+			if not prop:IsA("Folder") or prop == markerTrack then
+				continue
+			end
+
 			local default: any = prop:FindFirstChild("default")
 
 			if default then
