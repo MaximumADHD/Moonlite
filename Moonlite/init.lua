@@ -616,16 +616,16 @@ local function compileFrames(self: MoonTrack, targets: MoonTarget)
 				end
 
 				if not value.Static then
-				local easeFunc = EaseFuncs.Get(lastEase)
+					local easeFunc = EaseFuncs.Get(lastEase)
 
-				for i = 0, delta do
-					local frameDelta = easeFunc(i / delta)
-					local frame = lastFrame + i
-					if not frames[frame] then
-						frames[frame] = {}
-					end
+					for i = 0, delta do
+						local frameDelta = easeFunc(i / delta)
+						local frame = lastFrame + i
+						if not frames[frame] then
+							frames[frame] = {}
+						end
 
-					frames[frame][name] = interpolate(lastValue, v.Value, frameDelta)
+						frames[frame][name] = interpolate(lastValue, v.Value, frameDelta)
 					end
 				end
 
@@ -673,7 +673,7 @@ local function restoreTrack(self: MoonTrack)
 
 	for instance, props in defaults do
 		for name, value in props do
-			(instance :: any)[name] = value
+			setPropValue(self, instance, name, value)
 		end
 	end
 
