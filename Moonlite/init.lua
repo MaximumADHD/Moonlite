@@ -454,7 +454,7 @@ local function compileItem(self: MoonTrack, item: MoonAnimItem, targets: MoonTar
 					local props: any = {
 						Transform = {
 							Default = CFrame.identity,
-
+							Static = false,
 							Sequence = unpackKeyframes(keyframes, function(c1: CFrame)
 								return c1:Inverse() * default
 							end),
@@ -477,13 +477,15 @@ local function compileItem(self: MoonTrack, item: MoonAnimItem, targets: MoonTar
 			end
 
 			local default: any = prop:FindFirstChild("default")
+			local name = prop.Name
 
 			if default then
 				default = readValue(default)
 			end
 
-			props[prop.Name] = {
+			props[name] = {
 				Default = default,
+				Static = Specials.Static(target, name),
 				Sequence = unpackKeyframes(prop),
 			}
 		end
@@ -613,16 +615,18 @@ local function compileFrames(self: MoonTrack, targets: MoonTarget)
 					continue
 				end
 
-				local easeFunc = EaseFuncs.Get(lastEase)
+				if not value.Static then
+					local easeFunc = EaseFuncs.Get(lastEase)
 
-				for i = 0, delta do
-					local frameDelta = easeFunc(i / delta)
-					local frame = lastFrame + i
-					if not frames[frame] then
-						frames[frame] = {}
+					for i = 0, delta do
+						local frameDelta = easeFunc(i / delta)
+						local frame = lastFrame + i
+						if not frames[frame] then
+							frames[frame] = {}
+						end
+
+						frames[frame][name] = interpolate(lastValue, v.Value, frameDelta)
 					end
-
-					frames[frame][name] = interpolate(lastValue, v.Value, frameDelta)
 				end
 
 				lastEase = v.Ease
@@ -630,7 +634,7 @@ local function compileFrames(self: MoonTrack, targets: MoonTarget)
 				lastFrame = v.Time
 			end
 
-			if lastFrame < self.Frames then
+			if not value.Static and lastFrame < self.Frames then
 				local cache = frames[lastFrame][name]
 
 				for i = lastFrame, self.FrameRate do
@@ -669,7 +673,7 @@ local function restoreTrack(self: MoonTrack)
 
 	for instance, props in defaults do
 		for name, value in props do
-			(instance :: any)[name] = value
+			setPropValue(self, instance, name, value)
 		end
 	end
 
