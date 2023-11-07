@@ -588,7 +588,7 @@ local function static(inst: Instance, prop: string): boolean
 	if not staticBinds[className] then
 		local binds = {}
 
-		for class, propSet in StaticProperties do
+		for class, propSet in pairs(StaticProperties) do
 			if inst:IsA(class) then
 				for name, getSet in propSet do
 					binds[name] = getSet

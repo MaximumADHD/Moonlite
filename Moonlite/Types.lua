@@ -56,6 +56,7 @@ export type MoonKeyframe = {
 export type MoonProperty = {
 	Default: any,
 	Sequence: { MoonKeyframe },
+	Static: boolean,
 }
 
 export type MoonElement = {
