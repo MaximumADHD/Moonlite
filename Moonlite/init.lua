@@ -48,6 +48,7 @@ MoonTrack.__index = MoonTrack
 local CONSTANT_INTERPS = {
 	["Instance"] = true,
 	["boolean"] = true,
+	["string"] = true,
 	["nil"] = true,
 }
 
