@@ -59,6 +59,7 @@ export type MoonTrack = typeof(setmetatable({} :: {
 	Frames: number,
 	FrameRate: number,
 	TimePosition: number,
+	RestoreDefaults: boolean,
 
 	_completed: BindableEvent,
 	_locks: MoonElementLocks,
@@ -672,9 +673,11 @@ local function restoreTrack(self: MoonTrack)
 		return
 	end
 
-	for instance, props in defaults do
-		for name, value in props do
-			setPropValue(self, instance, name, value)
+	if self.RestoreDefaults then
+		for instance, props in defaults do
+			for name, value in props do
+				setPropValue(self, instance, name, value)
+			end
 		end
 	end
 
@@ -743,6 +746,7 @@ function Moonlite.CreatePlayer(save: StringValue, root: Instance?): MoonTrack
 		Looped = data.Information.Looped,
 		Frames = data.Information.Length,
 		FrameRate = data.Information.FPS or 60,
+		RestoreDefaults = true,
 		TimePosition = 0,
 
 		_save = save,
