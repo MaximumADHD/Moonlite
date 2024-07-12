@@ -6,13 +6,30 @@
 
 <br/>
 
-# Setup
-
-```lua
-Moonlite = require(game.ReplicatedStorage.Moonlite)
+# Installation
+If you use wally for managing packages, you can install it using the following line:
+```console
+MoonLite = "maximumadhd/moonlite@0.9.0"
 ```
+
+If you don't use Wally, you can install it from [Moonlite.rbxm](https://github.com/MaximumADHD/Moonlite/blob/main/Moonlite.rbxm) file.
+
+# Basic Usage
+Create a `LocalScript` in `StarterPlayerScripts` with the following code:
+```luau
+local Moonlite = require(game.ReplicatedStorage.Moonlite)
+
+local save = game.ReplicatedStorage.MoonliteSaves.my_save
+local MoonTrack = Moonlite.CreatePlayer(save)
+
+MoonTrack:Play()
+```
+The `save` is a StringValue normally stored in `game.ServerStorage.MoonAnimator2Saves`, but you'll want to use it on the client, so it's moved to `game.ReplicatedStorage.MoonliteSaves` for example.
+
+# Contribution
 When syncing by default with rojo, the module can be found directly in the `ReplicatedStorage` service.
 
+# APIs
 
 ## CreatePlayer
 ```lua
