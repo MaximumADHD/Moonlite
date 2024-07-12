@@ -7,7 +7,7 @@
 <br/>
 
 # Installation
-If you use wally for managing packages, you can install it using the following line:
+If you use Wally for managing packages, you can install it using the following line:
 ```console
 MoonLite = "maximumadhd/moonlite@0.9.0"
 ```
