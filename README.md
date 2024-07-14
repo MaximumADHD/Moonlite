@@ -131,7 +131,7 @@ Attempts to replace an element by its defined absolute path with a specific Inst
 
 ### Looped
 ```luau
-MoonliteTrack.Looped: boolean
+MoonTrack.Looped: boolean
 ```
 If set to `true`, this track's playback will loop on completion. This defaults to the value specified by the author of this sequence, and should be set explicitly if expected to behave one way or the other.
 
@@ -139,7 +139,7 @@ If set to `true`, this track's playback will loop on completion. This defaults t
 
 ### Completed
 ```luau
-MoonliteTrack.Completed: RBXScriptSignal
+MoonTrack.Completed: RBXScriptSignal
 ```
 Fires upon all of the track's elements completing their playback.
 
