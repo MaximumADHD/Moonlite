@@ -9,7 +9,7 @@
 # Installation
 If you use Wally for managing packages, you can install it using the following line:
 ```console
-MoonLite = "maximumadhd/moonlite@0.9.0"
+Moonlite = "maximumadhd/moonlite@0.9.0"
 ```
 
 If you don't use Wally, you can install it from [Moonlite.rbxm](https://github.com/MaximumADHD/Moonlite/blob/main/Moonlite.rbxm) file.
