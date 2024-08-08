@@ -470,33 +470,33 @@ local function compileItem(self: MoonTrack, item: MoonAnimItem, targets: MoonTar
 				end
 			end
 		end
-	else
-		local props = {}
+	end
 
-		for i, prop in frame:GetChildren() do
-			if not prop:IsA("Folder") or prop == markerTrack then
-				continue
-			end
+	local props = {}
 
-			local default: any = prop:FindFirstChild("default")
-			local name = prop.Name
-
-			if default then
-				default = readValue(default)
-			end
-
-			props[name] = {
-				Default = default,
-				Static = Specials.Static(target, name),
-				Sequence = unpackKeyframes(prop),
-			}
+	for i, prop in frame:GetChildren() do
+		if not prop:IsA("Folder") or prop == markerTrack or prop.Name == "Rig" then
+			continue
 		end
 
-		targets[target] = {
-			Props = props,
-			Target = target,
+		local default: any = prop:FindFirstChild("default")
+		local name = prop.Name
+
+		if default then
+			default = readValue(default)
+		end
+
+		props[name] = {
+			Default = default,
+			Static = Specials.Static(target, name),
+			Sequence = unpackKeyframes(prop),
 		}
 	end
+
+	targets[target] = {
+		Props = props,
+		Target = target,
+	}
 
 	if markerTrack then
 		local markers = {}
