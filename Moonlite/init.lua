@@ -110,6 +110,13 @@ local function resolveAnimPath(path: MoonAnimPath?, root: Instance?): Instance?
 			local name = path.InstanceNames[i]
 			local class = path.InstanceTypes[i]
 
+			if name == "CoreGui" then
+				path.InstanceNames[i] = "ReplicatedStorage"
+				path.InstanceTypes[i] = "ReplicatedStorage"
+				name = path.InstanceNames[i]
+				class = path.InstanceTypes[i]
+			end
+
 			local nextInst = (current :: any)[name]
 			assert(typeof(nextInst) == "Instance")
 			assert(nextInst.ClassName == class)
@@ -571,6 +578,12 @@ local function getInterpolator(value: any): (start: any, goal: any, delta: numbe
 			local value = lerp(start.Min, goal.Min, t)
 			return NumberRange.new(value)
 		end
+	elseif typeof(value) == "string" then
+		return function(start: string, goal: string, t: number)
+			local interpolatedString = goal:sub(1, math.floor(t * #goal))
+			local remainingString = start:sub(math.floor(t * #goal) + 1)
+			return interpolatedString..remainingString
+		end
 	elseif CONSTANT_INTERPS[typeof(value)] then
 		return function(start: any, goal: any, t: number)
 			if t >= 1 then
@@ -586,10 +599,12 @@ end
 
 local function compileFrames(self: MoonTrack, targets: MoonTarget)
 	local buffer = self._buffer
+	local elements = self._elements
 
 	for target, element in targets do
 		local frames = {}
 		buffer[target] = frames
+		table.insert(elements, target)
 
 		for name, value in element.Props do
 			if not value.Sequence[1] then
