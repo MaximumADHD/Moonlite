@@ -159,6 +159,10 @@ Specials.Camera = {
 				setCameraActive(work, camera, true)
 			else
 				work._cameraAttachToPart = nil
+
+				if not work._cameraLookAtPart then
+					setCameraActive(work, camera, false)
+				end
 			end
 		end,
 	}),

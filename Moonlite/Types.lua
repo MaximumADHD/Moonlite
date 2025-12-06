@@ -71,6 +71,10 @@ export type MoonProperties = {
 	[string]: any,
 }
 
+export type MoonPropertiesNil = {
+	[string]: { Value: any },
+}
+
 export type MoonFrameBuffer = {
 	[Instance]: {
 		[number]: MoonProperties,

@@ -36,6 +36,7 @@ type MoonKeyframe = Types.MoonKeyframe
 type MoonProperty = Types.MoonProperty
 type MoonJointInfo = Types.MoonJointInfo
 type MoonProperties = Types.MoonProperties
+type MoonPropertiesNil = Types.MoonPropertiesNil
 type MoonFrameBuffer = Types.MoonFrameBuffer
 type MoonElementLocks = Types.MoonElementLocks
 type MoonKeyframePack = Types.MoonKeyframePack
@@ -80,7 +81,7 @@ export type MoonTrack = typeof(setmetatable({} :: {
 
 local PlayingTracks = {} :: {
 	[MoonTrack]: {
-		[Instance]: MoonProperties,
+		[Instance]: MoonPropertiesNil,
 	},
 }
 
@@ -675,8 +676,8 @@ local function restoreTrack(self: MoonTrack)
 
 	if self.RestoreDefaults then
 		for instance, props in defaults do
-			for name, value in props do
-				setPropValue(self, instance, name, value)
+			for name, valueTbl in props do
+				setPropValue(self, instance, name, valueTbl.Value)
 			end
 		end
 	end
@@ -925,7 +926,7 @@ function MoonTrack.Play(self: MoonTrack)
 		for name in frames[0] do
 			local success, value = getPropValue(self, instance, name)
 			if success then
-				defaults[name] = value
+				defaults[name] = { Value = value }
 			end
 		end
 	end
