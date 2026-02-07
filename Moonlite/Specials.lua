@@ -149,15 +149,16 @@ end
 Specials.Camera = {
 	AttachToPart = BoundProp({
 		Get = function(camera: Camera, work: Scratchpad)
-			return work._cameraAttachToPart
+			return work._cameraAttachToPart and work._cameraAttachToPart or {}
 		end,
 
 		Set = function(part: BasePart?, camera: Camera, work: Scratchpad)
-			if part then
+			if part and typeof(part) ~= "table"  then
 				work._activeCamera = camera
 				work._cameraAttachToPart = part
 				setCameraActive(work, camera, true)
 			else
+				setCameraActive(work, camera, false)
 				work._cameraAttachToPart = nil
 			end
 		end,
