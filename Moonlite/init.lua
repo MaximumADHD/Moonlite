@@ -69,6 +69,7 @@ export type MoonTrack = typeof(setmetatable({} :: {
 	_markers: MoonMarkers,
 	_markerSignals: MoonMarkerSignals,
 	_endMarkerSignals: MoonMarkerSignals,
+	_lastFrame: number,
 
 	_root: Instance?,
 	_save: StringValue,
@@ -714,23 +715,27 @@ local function stepTrack(self: MoonTrack, dt: number)
 		end
 	end
 
-	for instance, markers in self._markers do
-		local frameMarkers = markers[currentFrame]
-		if not frameMarkers then
-			continue
-		end
+	if currentFrame ~= self._lastFrame then
+		for instance, markers in self._markers do
+			local frameMarkers = markers[currentFrame]
+			if not frameMarkers then
+				continue
+			end
 
-		for name, data in frameMarkers.StartMarkers do
-			if self._markerSignals[name] then
-				self._markerSignals[name]:Fire(instance, data)
+			for name, data in frameMarkers.StartMarkers do
+				if self._markerSignals[name] then
+					self._markerSignals[name]:Fire(instance, data)
+				end
+			end
+
+			for name, data in frameMarkers.EndMarkers do
+				if self._endMarkerSignals[name] then
+					self._endMarkerSignals[name]:Fire(instance, data)
+				end
 			end
 		end
-
-		for name, data in frameMarkers.EndMarkers do
-			if self._endMarkerSignals[name] then
-				self._endMarkerSignals[name]:Fire(instance, data)
-			end
-		end
+		
+		self._lastFrame = currentFrame
 	end
 
 	self.TimePosition += dt
@@ -758,6 +763,7 @@ function Moonlite.CreatePlayer(save: StringValue, root: Instance?): MoonTrack
 		_markers = {},
 		_markerSignals = {},
 		_endMarkerSignals = {},
+		_lastFrame = -1,
 
 		_locks = {},
 		_elements = {},
@@ -893,12 +899,14 @@ end
 
 function MoonTrack.Stop(self: MoonTrack)
 	self.TimePosition = 0
+	self._lastFrame = -1
 	task.spawn(restoreTrack, self)
 	self._completed:Fire(Enum.PlaybackState.Cancelled)
 end
 
 function MoonTrack.Reset(self: MoonTrack)
 	self.TimePosition = 0
+	self._lastFrame = -1
 	stepTrack(self, 0)
 
 	return true
@@ -911,6 +919,7 @@ function MoonTrack.Play(self: MoonTrack)
 
 	if self.TimePosition >= self:GetTimeLength() then
 		self.TimePosition = 0
+		self._lastFrame = -1
 	end
 
 	local props = {}
